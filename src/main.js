@@ -47,6 +47,8 @@ import {GatePainting} from "./draw/GatePainting.js"
 import {GATE_CIRCUIT_DRAWER} from "./ui/DisplayedCircuit.js"
 import {GateColumn} from "./circuit/GateColumn.js";
 import {Point} from "./math/Point.js";
+import {initQnd} from "./ui/qnd.js"
+import {QndView, qndCheckInColumn} from "./ui/qndView.js"
 initSerializer(
     GatePainting.LABEL_DRAWER,
     GatePainting.MATRIX_DRAWER,
@@ -162,8 +164,25 @@ const redrawNow = () => {
 };
 
 redrawThrottle = new CooldownThrottle(redrawNow, Config.REDRAW_COOLDOWN_MILLIS, 0.1, true);
+QndView.requestRedraw = () => redrawThrottle.trigger();
 window.addEventListener('resize', () => redrawThrottle.trigger(), false);
 displayed.observable().subscribe(() => redrawThrottle.trigger());
+
+// Double-click a QND parity check to expand / collapse just that column.
+canvasDiv.addEventListener('dblclick', ev => {
+    let circ = displayed.get().displayedCircuit;
+    let pt = eventPosRelativeTo(ev, canvas);
+    let col = circ.indexOfDisplayedColumnAt(pt.x);
+    if (col === undefined || col >= circ.circuitDefinition.columns.length ||
+            pt.y < circ.top || pt.y > circ.top + circ.desiredHeight()) {
+        return;
+    }
+    if (qndCheckInColumn(circ.circuitDefinition.columns[col]) === undefined) {
+        return;
+    }
+    QndView.toggle(col);
+    ev.preventDefault();
+});
 
 /** @type {undefined|!string} */
 let clickDownGateButtonKey = undefined;
@@ -300,6 +319,7 @@ initForge(revision, obsIsAnyOverlayShowing.observable());
 initUndoRedo(revision, obsIsAnyOverlayShowing.observable());
 initClear(revision, obsIsAnyOverlayShowing.observable());
 initMenu(revision, obsIsAnyOverlayShowing.observable());
+initQnd();
 initTitleSync(revision);
 obsForgeIsShowing.
     zipLatest(obsExportsIsShowing, (e1, e2) => e1 || e2).

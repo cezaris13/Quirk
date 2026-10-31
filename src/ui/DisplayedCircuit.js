@@ -32,6 +32,7 @@ import {Rect} from "../math/Rect.js"
 import {Util} from "../base/Util.js"
 import {seq, Seq} from "../base/Seq.js"
 import {paintBlochSphereDisplay} from "../gates/BlochSphereDisplay.js"
+import {QndView, qndCheckInColumn} from "./qndView.js"
 
 /** @type {!number} */
 let CIRCUIT_OP_HORIZONTAL_SPACING = 10;
@@ -551,6 +552,90 @@ class DisplayedCircuit {
         }
 
         this._drawColumnSurvivalRate(painter, gateColumn, col, stats);
+        this._drawCompactQndCheck(painter, gateColumn, col);
+    }
+
+    /**
+     * Draws a QND parity check paper-style: one M_{P⊗k} box over the measured qubits, with "↓ s" pointing at
+     * the readout when the box is tall enough.
+     * @param {!Painter} painter
+     * @param {!GateColumn} gateColumn
+     * @param {!int} col
+     * @private
+     */
+    _drawCompactQndCheck(painter, gateColumn, col) {
+        let check = qndCheckInColumn(gateColumn);
+        if (check === undefined || !QndView.isCompact(col)) {
+            return;
+        }
+        let firstRow = Math.min(...check.rows);
+        let lastRow = Math.max(...check.rows);
+        let y1 = this.gateRect(firstRow, col).y;
+        let y2 = this.gateRect(lastRow, col).bottom();
+        let g = this.gateRect(firstRow, col);
+        let box = new Rect(g.x - 2, y1, g.w + 4, y2 - y1);
+        let ctx = painter.ctx;
+        ctx.save();
+
+        ctx.beginPath();
+        GatePainting.traceRoundRect(ctx, box, 4);
+        ctx.fillStyle = Config.GATE_FILL_COLOR;
+        ctx.fill();
+        ctx.lineWidth = 1.3;
+        ctx.strokeStyle = Config.DEFAULT_STROKE_COLOR;
+        ctx.stroke();
+
+        // Faint pass-through lines on the unmeasured wires the box covers.
+        let measured = new Set(check.rows);
+        for (let row = firstRow; row <= lastRow; row++) {
+            if (measured.has(row)) {
+                continue;
+            }
+            let y = this.gateRect(row, col).center().y;
+            ctx.save();
+            ctx.setLineDash([3, 3]);
+            ctx.globalAlpha = 0.45;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(box.x, y);
+            ctx.lineTo(box.right(), y);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // "M" with the measured Pauli product as subscript.
+        let isUniform = check.paulis.every(p => p === check.paulis[0]);
+        let subscript = check.paulis.length === 1 ? check.paulis[0] :
+            isUniform ? check.paulis[0] + '⊗' + check.paulis.length :
+            check.paulis.join('');
+        let cx = box.center().x;
+        let cy = box.center().y;
+        let serif = "QndMath, 'STIX Two Math', 'Cambria Math', 'Times New Roman', Georgia, serif";
+        let mainFont = '15px ' + serif;
+        let subFont = '10px ' + serif;
+        ctx.font = mainFont;
+        let mWidth = ctx.measureText('M').width;
+        ctx.font = subFont;
+        let x = cx - (mWidth + Math.min(ctx.measureText(subscript).width, box.w - mWidth - 4)) / 2 + 5;
+        let isTall = box.h >= 70;
+        let y = isTall ? cy - 8 : cy + 4;
+        ctx.fillStyle = Config.DEFAULT_TEXT_COLOR;
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left';
+        ctx.font = mainFont;
+        ctx.fillText('M', x, y);
+        ctx.font = subFont;
+        ctx.fillText(subscript, x + mWidth, y + 4, box.w - mWidth - 4);
+
+        // The outcome s goes to the readout wire.
+        if (isTall) {
+            ctx.textAlign = 'center';
+            ctx.font = '13px ' + serif;
+            ctx.fillText('↓', cx + 5, cy + 9);
+            ctx.font = 'italic 15px ' + serif;
+            ctx.fillText('s', cx + 5, cy + 25);
+        }
+        ctx.restore();
     }
 
     /**
@@ -1078,6 +1163,11 @@ class DisplayedCircuit {
      * @returns {!{newCircuit: !DisplayedCircuit, newHand: !Hand}}
      */
     tryGrab(hand, duplicate=false, wholeColumn=false, ignoreResizeTabs=false, alt=false) {
+        // A paper-style QND check is grabbed as a unit.
+        if (!wholeColumn && this._isOnCompactQndCheck(hand)) {
+            return this._tryGrabWholeColumn(hand, duplicate, alt) || {newCircuit: this, newHand: hand};
+        }
+
         if (wholeColumn) {
             let grabRowResult = this._tryGrabRow(hand, alt);
             if (grabRowResult !== undefined) {
@@ -1226,6 +1316,27 @@ class DisplayedCircuit {
             }
         }
         return undefined;
+    }
+
+    /**
+     * @param {!Hand} hand
+     * @returns {!boolean} Whether the hand is over a paper-style QND check (its box or its readout).
+     * @private
+     */
+    _isOnCompactQndCheck(hand) {
+        if (hand.isBusy() || hand.pos === undefined) {
+            return false;
+        }
+        let col = this.indexOfDisplayedColumnAt(hand.pos.x);
+        if (col === undefined || col >= this.circuitDefinition.columns.length || !QndView.isCompact(col)) {
+            return false;
+        }
+        let check = qndCheckInColumn(this.circuitDefinition.columns[col]);
+        if (check === undefined) {
+            return false;
+        }
+        let row = this.wireIndexAt(hand.pos.y);
+        return (row >= Math.min(...check.rows) && row <= Math.max(...check.rows)) || row === check.readRow;
     }
 
     /**
