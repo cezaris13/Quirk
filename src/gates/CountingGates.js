@@ -71,7 +71,7 @@ let STAIRCASE_DRAWER = (timeOffset, steps, flip=false) => args => {
     args.painter.ctx.globalAlpha *= 0.3;
     args.painter.fillPolygon(curve, 'yellow');
     for (let i = 1; i < curve.length - 2; i++) {
-        args.painter.strokeLine(curve[i], curve[i+1], 'black');
+        args.painter.strokeLine(curve[i], curve[i+1], Config.FOREGROUND_COLOR);
     }
     if (steps === 2 && t < 0.5) {
         args.painter.fillRect(args.rect, 'white');

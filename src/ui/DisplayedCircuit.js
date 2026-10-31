@@ -383,7 +383,7 @@ class DisplayedCircuit {
                 if (this._highlightedSlot === undefined && hand.pos !== undefined && rect.containsPoint(hand.pos)) {
                     painter.fillRect(rect, Config.HIGHLIGHTED_GATE_FILL_COLOR);
                 }
-                painter.print(`|${v}⟩`, 20, y, 'right', 'middle', 'black', '14px sans-serif', 20, Config.WIRE_SPACING);
+                painter.print(`|${v}⟩`, 20, y, 'right', 'middle', Config.FOREGROUND_COLOR, '14px ' + Config.DEFAULT_FONT_FAMILY, 20, Config.WIRE_SPACING);
             }
         }
 
@@ -412,7 +412,7 @@ class DisplayedCircuit {
                     }
                     lastX = x;
                 }
-            }).thenStroke('black');
+            }).thenStroke(Config.FOREGROUND_COLOR);
         }
         painter.ctx.restore();
         if (this._extraWireStartIndex !== undefined && this.circuitDefinition.numWires === Config.MAX_WIRE_COUNT) {
@@ -594,7 +594,7 @@ class DisplayedCircuit {
             'center',
             'bottom',
             'red',
-            '14px sans-serif',
+            '14px ' + Config.DEFAULT_FONT_FAMILY,
             800,
             50);
         painter.print(
@@ -604,7 +604,7 @@ class DisplayedCircuit {
             'center',
             'bottom',
             'red',
-            '14px sans-serif',
+            '14px ' + Config.DEFAULT_FONT_FAMILY,
             800,
             50);
     }
@@ -615,7 +615,7 @@ class DisplayedCircuit {
             this._highlightedSlot.row === undefined) {
             let rect = this.gateRect(0, col, 1, this._groundedWireCount()).paddedBy(3);
             painter.fillRect(rect, 'rgba(255, 196, 112, 0.7)');
-            painter.strokeRect(rect, 'black');
+            painter.strokeRect(rect, Config.FOREGROUND_COLOR);
         }
     }
 
@@ -632,7 +632,7 @@ class DisplayedCircuit {
             let w = this.gateRect(row, this.clampedCircuitColCount() + 1).x;
             let rect = this.wireRect(row).takeLeft(w);
             painter.fillRect(rect, 'rgba(255, 196, 112, 0.7)');
-            painter.strokeRect(rect, 'black');
+            painter.strokeRect(rect, Config.FOREGROUND_COLOR);
         }
     }
 
@@ -1293,7 +1293,9 @@ class DisplayedCircuit {
 
         for (let i = 0; i < numWire; i++) {
             let p = stats.controlledWireProbabilityJustAfter(i, Infinity);
-            MathPainter.paintProbabilityBox(painter, p, this.gateRect(i, chanceCol), hand.hoverPoints());
+            let chanceRect = this.gateRect(i, chanceCol);
+            GatePainting.paintRounded(painter, chanceRect,
+                () => MathPainter.paintProbabilityBox(painter, p, chanceRect, hand.hoverPoints()));
             let m = stats.qubitDensityMatrix(Infinity, i);
             if (m !== undefined) {
                 paintBlochSphereDisplay(painter, m, this.gateRect(i, blochCol), hand.hoverPoints());
@@ -1333,14 +1335,14 @@ class DisplayedCircuit {
         let gridRect = this._rectForSuperpositionDisplay();
 
         let numWire = this.importantWireCount();
-        MathPainter.paintMatrix(
+        GatePainting.paintRounded(painter, gridRect, () => MathPainter.paintMatrix(
             painter,
             amplitudeGrid,
             gridRect,
             numWire < Config.SIMPLE_SUPERPOSITION_DRAWING_WIRE_THRESHOLD ? Config.SUPERPOSITION_MID_COLOR : undefined,
-            'black',
+            Config.FOREGROUND_COLOR,
             numWire < Config.SIMPLE_SUPERPOSITION_DRAWING_WIRE_THRESHOLD ? Config.SUPERPOSITION_FORE_COLOR : undefined,
-            Config.SUPERPOSITION_BACK_COLOR);
+            Config.SUPERPOSITION_BACK_COLOR));
         let forceSign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
         MathPainter.paintMatrixTooltip(painter, amplitudeGrid, gridRect, hand.hoverPoints(),
             (c, r) => `Amplitude of |${Util.bin(r*amplitudeGrid.width() + c, numWire)}⟩ (decimal ${r*amplitudeGrid.width() + c})`,
@@ -1414,7 +1416,7 @@ class DisplayedCircuit {
             'left',
             'top',
             'gray',
-            '12px sans-serif',
+            '12px ' + Config.DEFAULT_FONT_FAMILY,
             100,
             20);
 
@@ -1452,7 +1454,7 @@ class DisplayedCircuit {
                 'right',
                 'bottom',
                 'red',
-                '14px sans-serif',
+                '14px ' + Config.DEFAULT_FONT_FAMILY,
                 800,
                 50);
         }
@@ -1620,7 +1622,7 @@ function _drawLabelsReasonablyFast(painter, dy, n, labeller, boundingWidth) {
     } else {
         ctx.fillRect(0, 0, w + 2*pad, step*n);
     }
-    ctx.fillStyle = 'black';
+    ctx.fillStyle = Config.FOREGROUND_COLOR;
     for (let i = 0; i < n; i++) {
         ctx.fillText(labeller(i), pad, h*0.5 + step*i);
     }

@@ -41,9 +41,9 @@ function drawMeasurementGate(args) {
     args.painter.trace(trace => {
         trace.ctx.arc(x, y, r, τ/2, τ);
         trace.line(x, y, p, q);
-    }).thenStroke('black');
+    }).thenStroke(Config.FOREGROUND_COLOR);
     // Draw the indicator head.
-    args.painter.trace(trace => trace.arrowHead(p, q, r*0.3, a, τ/4)).thenFill('black');
+    args.painter.trace(trace => trace.arrowHead(p, q, r*0.3, a, τ/4)).thenFill(Config.FOREGROUND_COLOR);
 }
 
 let MeasurementGate = new GateBuilder().

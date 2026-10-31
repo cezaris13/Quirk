@@ -32,24 +32,27 @@ Config.MIN_WIRE_COUNT = 2;
 Config.MIN_COL_COUNT = 5;
 Config.URL_CIRCUIT_PARAM_KEY = 'circuit';
 
+// Main ink color for strokes, text and markers (near-black).
+Config.FOREGROUND_COLOR = '#22252b';
+
 // Gate background colors.
-Config.GATE_FILL_COLOR = 'white';
-Config.HIGHLIGHTED_GATE_FILL_COLOR = '#FB7';
-Config.TIME_DEPENDENT_HIGHLIGHT_COLOR = '#FFC';
+Config.GATE_FILL_COLOR = '#ffffff';
+Config.HIGHLIGHTED_GATE_FILL_COLOR = '#ffd9b8';
+Config.TIME_DEPENDENT_HIGHLIGHT_COLOR = '#fff4cf';
 
 // Mixed-state displays are green.
-Config.DISPLAY_GATE_IN_TOOLBOX_FILL_COLOR = '#4F4';
-Config.DISPLAY_GATE_BACK_COLOR = '#EFE';
-Config.DISPLAY_GATE_FORE_COLOR = '#3F3';
+Config.DISPLAY_GATE_IN_TOOLBOX_FILL_COLOR = '#e6e8ec';
+Config.DISPLAY_GATE_BACK_COLOR = '#f6f7f9';
+Config.DISPLAY_GATE_FORE_COLOR = '#c4cbd7';
 
 // Changes are yellow.
-Config.OPERATION_BACK_COLOR = '#FFE';
-Config.OPERATION_FORE_COLOR = '#FF0';
+Config.OPERATION_BACK_COLOR = '#fffaeb';
+Config.OPERATION_FORE_COLOR = '#f5c44f';
 
 // Pure-state displays are cyan.
-Config.SUPERPOSITION_BACK_COLOR = '#EFF';
-Config.SUPERPOSITION_MID_COLOR = '#8FF';
-Config.SUPERPOSITION_FORE_COLOR = '#0BB';
+Config.SUPERPOSITION_BACK_COLOR = '#eef5fd';
+Config.SUPERPOSITION_MID_COLOR = '#a8cbf5';
+Config.SUPERPOSITION_FORE_COLOR = '#2a78d6';
 
 // Time constants.
 Config.CYCLE_DURATION_MS = 8000; // How long it takes for evolving gates to cycle, in milliseconds.
@@ -61,11 +64,11 @@ Config.REDRAW_COOLDOWN_MILLIS = 10; // Milliseconds. Rate-limit on redraws. Long
 Config.GATE_RADIUS = 20;
 Config.WIRE_SPACING = 50;
 
-Config.BACKGROUND_COLOR = 'white';
-Config.BACKGROUND_COLOR_CIRCUIT = 'white';
+Config.BACKGROUND_COLOR = '#ffffff';
+Config.BACKGROUND_COLOR_CIRCUIT = '#ffffff';
 
 // Toolbox layout.
-Config.BACKGROUND_COLOR_TOOLBOX = '#CCC';
+Config.BACKGROUND_COLOR_TOOLBOX = '#f3f2ee';
 Config.TOOLBOX_GATE_SPACING = 2;
 Config.TOOLBOX_GROUP_SPACING = 24 - Config.TOOLBOX_GATE_SPACING;
 Config.TOOLBOX_GATE_SPAN = Config.GATE_RADIUS * 2 + Config.TOOLBOX_GATE_SPACING;
@@ -83,11 +86,11 @@ Config.MINIMUM_CANVAS_HEIGHT = 400;
 Config.SUPPRESSED_GLSL_WARNING_PATTERNS = [];
 
 // Draw constants.
-Config.DEFAULT_FILL_COLOR = 'white';
-Config.DEFAULT_STROKE_COLOR = 'black';
-Config.DEFAULT_TEXT_COLOR = 'black';
+Config.DEFAULT_FILL_COLOR = '#ffffff';
+Config.DEFAULT_STROKE_COLOR = Config.FOREGROUND_COLOR;
+Config.DEFAULT_TEXT_COLOR = Config.FOREGROUND_COLOR;
 Config.DEFAULT_FONT_SIZE = 12;
-Config.DEFAULT_FONT_FAMILY = 'sans-serif';
+Config.DEFAULT_FONT_FAMILY = 'QndMath, Inter, system-ui, -apple-system, sans-serif';
 Config.DEFAULT_STROKE_THICKNESS = 1;
 
 // Calling WebGLRenderingContext.getError forces a CPU/GPU sync. It's very expensive.
@@ -95,5 +98,11 @@ Config.CHECK_WEB_GL_ERRORS_EVEN_ON_HOT_PATHS = false;
 Config.SEMI_STABLE_RANDOM_VALUE_LIFETIME_MILLIS = 300;
 
 Config.IGNORED_WEBGL_INFO_TERMS = [];
+
+// QND fork styling.
+Config.GATE_CORNER_RADIUS = 6;
+Config.GATE_OUTLINE_COLOR = '#2b2f36';
+Config.MUTED_TEXT_COLOR = '#6b6f76';
+Config.PARITY_LABEL_COLOR = '#c2410c';
 
 export {Config}

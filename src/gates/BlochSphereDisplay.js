@@ -80,7 +80,7 @@ function _paintBlochSphereDisplay_indicator(
     let r = 3.8 / (1 + x / 6);
 
     // Draw state indicators (in not-quite-correct 3d).
-    painter.strokeLine(c, p, 'black', 1.5);
+    painter.strokeLine(c, p, Config.FOREGROUND_COLOR, 1.5);
     painter.fillCircle(p, r, fillColor);
 
     painter.ctx.save();
@@ -88,12 +88,12 @@ function _paintBlochSphereDisplay_indicator(
     painter.fillCircle(p, r, 'yellow');
     painter.ctx.restore();
 
-    painter.strokeCircle(p, r, 'black');
+    painter.strokeCircle(p, r, Config.FOREGROUND_COLOR);
 
     // Show depth by lerping the line from overlaying to being overlayd by the ball.
     painter.ctx.save();
     painter.ctx.globalAlpha *= Math.min(1, Math.max(0, 0.5+x*5));
-    painter.strokeLine(c, p, 'black', 2);
+    painter.strokeLine(c, p, Config.FOREGROUND_COLOR, 2);
     painter.ctx.restore();
 }
 
@@ -147,7 +147,7 @@ let BlochSphereDisplay = new GateBuilder().
         let {row, col} = args.positionInCircuit;
         let ρ = args.stats.qubitDensityMatrix(col, row);
         paintBlochSphereDisplay(args.painter, ρ, args.rect, args.focusPoints);
-    })).
+    }, false)).
     promiseHasNoNetEffectOnStateVector().
     setExtraDisableReasonFinder(args => args.isNested ? "can't\nnest\ndisplays\n(sorry)" : undefined).
     gate;

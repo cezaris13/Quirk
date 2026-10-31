@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {Config} from "../Config.js"
 import {Complex} from "../math/Complex.js"
 import {GateBuilder} from "../circuit/Gate.js"
 import {GatePainting} from "../draw/GatePainting.js"
@@ -31,8 +32,8 @@ let POST_SELECT_DRAWER = args => {
 
     if (!args.isInToolbox) {
         let {x, y, w, h} = args.rect;
-        args.painter.print("post-", x + w / 2, y, 'center', 'hanging', 'red', '10px sans-serif', w, h / 2);
-        args.painter.print("select", x + w / 2, y + h, 'center', 'bottom', 'red', '10px sans-serif', w, h / 2);
+        args.painter.print("post-", x + w / 2, y, 'center', 'hanging', 'red', '10px ' + Config.DEFAULT_FONT_FAMILY, w, h / 2);
+        args.painter.print("select", x + w / 2, y + h, 'center', 'bottom', 'red', '10px ' + Config.DEFAULT_FONT_FAMILY, w, h / 2);
     }
 };
 

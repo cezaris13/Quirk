@@ -69,8 +69,8 @@ function _paintSampleDisplay_result(args) {
             startY+d*(i+0.5),
             'center',
             'middle',
-            'black',
-            '16px sans-serif',
+            Config.FOREGROUND_COLOR,
+            '16px ' + Config.DEFAULT_FONT_FAMILY,
             w,
             d);
     }

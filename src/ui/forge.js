@@ -85,7 +85,7 @@ function initForge(revision, obsIsAnyOverlayShowing) {
                 op,
                 rect1,
                 Config.OPERATION_FORE_COLOR,
-                'black',
+                Config.FOREGROUND_COLOR,
                 undefined,
                 Config.OPERATION_BACK_COLOR,
                 undefined,
@@ -103,7 +103,7 @@ function initForge(revision, obsIsAnyOverlayShowing) {
                     Config.OPERATION_FORE_COLOR);
             }
             let cx = (rect1.right() + rect2.x)/2;
-            painter.strokeLine(new Point(cx, 0), new Point(cx, canvas.height), 'black', 2);
+            painter.strokeLine(new Point(cx, 0), new Point(cx, canvas.height), Config.FOREGROUND_COLOR, 2);
             if (!op.hasNaN()) {
                 button.disabled = false;
             }

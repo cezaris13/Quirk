@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {Config} from "../Config.js"
 import {Gate, GateBuilder} from "../circuit/Gate.js"
 import {GatePainting} from "../draw/GatePainting.js"
 import {reverseShaderForSize} from "./ReverseBitsGate.js"
@@ -41,8 +42,8 @@ function drawInputGate(args, key, reverse) {
         y-2,
         'center',
         'bottom',
-        'black',
-        '16px sans-serif',
+        Config.FOREGROUND_COLOR,
+        '16px ' + Config.DEFAULT_FONT_FAMILY,
         args.rect.w - 2,
         args.rect.h / 2);
     args.painter.print(
@@ -51,8 +52,8 @@ function drawInputGate(args, key, reverse) {
         y+2,
         'center',
         'top',
-        'black',
-        '16px sans-serif',
+        Config.FOREGROUND_COLOR,
+        '16px ' + Config.DEFAULT_FONT_FAMILY,
         args.rect.w - 2,
         args.rect.h / 2);
 }

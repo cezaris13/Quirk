@@ -1,23 +1,26 @@
 <div id="menu-div" style="display:block;">
-    <div id="menu-overlay" style="position:fixed; left: 0; top: 0; height: 100vh; width: 100vw; background: rgba(0, 0, 0, 0.8);">
+    <div id="menu-overlay" style="position:fixed; left: 0; top: 0; height: 100vh; width: 100vw; background: rgba(20, 24, 31, 0.55); backdrop-filter: blur(3px);">
     </div>
     <div style="position:absolute; top:20px; left:50px; margin:0;">
-        <div style="display:inline-block; padding:20px; background-color:white; border:1px solid black; text-align:center;">
+        <div style="display:inline-block; padding:24px; background-color:white; border-radius:14px; box-shadow:0 18px 48px rgba(20,24,31,.25); text-align:center;">
             <div style="font-size: 32px;">
                 <img src="data:image/png;base64,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"/>
                 Welcome to Quirk
             </div>
 
             A drag-and-drop quantum circuit simulator.
+            <div style="margin-top:6px; font-size:13px; color:#6b6f76;">
+                A modified version of <a href="https://algassert.com/quirk">Quirk</a> by Craig Gidney.
+            </div>
 
             <div style="margin:20px;">
                 <div id="loading-div" style="color:#D90; font-size:40px; display:block; height:120px; width:410px;">
                     Loading...
                 </div>
-                <button tabindex="50" id="close-menu-button" style="width:410px; height:120px; font-size:20px; display:none;">Edit Circuit</button>
+                <button tabindex="50" id="close-menu-button" style="width:410px; height:96px; font-size:18px; font-weight:600; border-radius:12px; display:none;">Edit Circuit</button>
             </div>
 
-            <div style="display:inline-block; text-align:center; border:1px solid black; padding:2px;">
+            <div style="display:inline-block; text-align:center; border:1px solid #e3e2dc; border-radius:10px; padding:8px 4px;">
                 <a tabindex="51" href="https://github.com/Strilanc/Quirk/wiki/How-to-use-Quirk">
                     <div style="width:128px;">
                         <svg version="1.1" viewBox="0 0 20 25" width="48" height="48">
@@ -29,7 +32,7 @@
                 </a>
             </div>
 
-            <div style="display:inline-block; text-align:center; border:1px solid black; padding:2px;">
+            <div style="display:inline-block; text-align:center; border:1px solid #e3e2dc; border-radius:10px; padding:8px 4px;">
                 <a tabindex="52" href="https://www.youtube.com/watch?v=aloFwlBUwsQ">
                     <div style="width:128px;">
                         <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAACt0lEQVQoz+3SP09TYRQG8IOL4RsgSNvbv4C4uMAkLgbippEw6CKwqIuGwW/gZEI6kIiDo0MnEk1MmEBLRQFbCnJLa6WlFK6K2kKrBarH55p7TUWa1vgm8pqe5Jc0vbfneZ+8JWYmmUl9+FqBWoFagf+hwP5Jn/TUQw/cgmG4Dz54DH4IQQwSkIaMgf+Q+bu0sStm7PYbWT4je9g4i36meio3a+2eOrgBGeBDKmOcse63Aql29yiwJO79cvjVE+4+YMn0/SyQbHNPA0tm+sfhV9rcdmBJOehNq2sQWFKDFG91eYEl5aXXLS4fsKR8FPM4A8BCtLq3hO2qToCiHqcKLMJOKrW3NnTzZbTFlRO1swKVlt1ODViEr9ks65NPpQor/VeCyx5XQdTuMjSKuBw5YBHMAvoU9/Z4MxzejvdeDOJZUVTGPjlS8UGUYkkBc/JbW7weCGRi53rm8c43kXk6euV0sCgHFTBv46OmcXp8/F3kTNeCyExadDhYlHIFSm/jbTLJqbGx9aWOjoiITFpw2FmUSgXM2/iwscFaIsHRgf7I32ZS2G5nUaopoM+237+61Nm5JCKT5hU7i1LxLxQKaerprrDITAopCotSrsAXVX0f6e4OiswyUdCmsCj7C+wkk9no+QtzeFYUmVOK5qxKDlgEs8CupuWjly7P4LtdUbvLyNGsVdGARSisJArxq9dmZ232gqidFWg0Y7GpwEJYlbywXdVR6UWzbQpYUlP0vNnmA5aUj6aPW73AkvLSsybrALCkBijQZFWAJaWQPlONlgCwZAJkztNGSy+wZHqpdJ4cs4wAS2KEDprJBssgJIEPqU24DnVUbiYamo/AKeiH23AXHsAjmISQIQ4J0CBjyAJX4bPx/idjh27R2DsBD43MUbgDQ3AWjv52YGaWWq1ArUCtQK3Av/UdR/1BF+14cggAAAAASUVORK5CYII=">
@@ -38,7 +41,7 @@
                 </a>
             </div>
 
-            <div style="display:inline-block; text-align:center; border:1px solid black; padding:2px;">
+            <div style="display:inline-block; text-align:center; border:1px solid #e3e2dc; border-radius:10px; padding:8px 4px;">
                 <a tabindex="53" href="https://github.com/Strilanc/Quirk">
                     <div style="width:128px;">
                         <svg version="1.1" viewBox="0 0 16 16" width="48" height="48">
@@ -51,7 +54,7 @@
                 </a>
             </div>
         </div>
-        <div style="display:inline-block; vertical-align:top; line-height:1.8; padding:13px 15px 13px 5px; background-color:#DDD; border:1px solid gray; margin:0 0 0 -5px;">
+        <div style="display:inline-block; vertical-align:top; line-height:1.8; padding:18px 22px; background-color:#f6f5f1; border-radius:14px; box-shadow:0 18px 48px rgba(20,24,31,.25); margin:0 0 0 12px; font-size:14px;">
             Example Circuits<br>
             <a id="example-anchor-grover">Grover Search</a><br>
             <a id="example-anchor-shor">Shor Period Finding</a><br>

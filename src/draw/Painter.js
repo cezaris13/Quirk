@@ -138,7 +138,7 @@ class Painter {
      * @param {!string=} color The stroke color.
      * @param {!number=} thickness The stroke thickness.
      */
-    strokeRect(rect, color = "black", thickness = 1) {
+    strokeRect(rect, color = Config.FOREGROUND_COLOR, thickness = 1) {
         this.ctx.strokeStyle = color;
         this.ctx.lineWidth = thickness;
         this.ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);

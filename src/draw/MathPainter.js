@@ -57,7 +57,7 @@ class MathPainter {
         let cen = drawArea.center();
         if (isNaN(probability)) {
             painter.fillPolygon([drawArea.bottomLeft(), drawArea.topLeft(), drawArea.topRight()], fillColor);
-            painter.print("NaN", cen.x, cen.y, 'center', 'middle', 'red', '9pt sans-serif', drawArea.w, drawArea.h);
+            painter.print("NaN", cen.x, cen.y, 'center', 'middle', 'red', '9pt ' + Config.DEFAULT_FONT_FAMILY, drawArea.w, drawArea.h);
         } else {
             painter.fillRect(drawArea.takeBottomProportion(probability), fillColor);
             painter.print(
@@ -66,8 +66,8 @@ class MathPainter {
                 cen.y,
                 'center',
                 'middle',
-                'black',
-                '9pt sans-serif',
+                Config.FOREGROUND_COLOR,
+                '9pt ' + Config.DEFAULT_FONT_FAMILY,
                 drawArea.w,
                 drawArea.h);
         }
@@ -306,7 +306,7 @@ class MathPainter {
                 'center',
                 'middle',
                 'red',
-                '16px sans-serif',
+                '16px ' + Config.DEFAULT_FONT_FAMILY,
                 drawArea.w,
                 drawArea.h);
         }
@@ -329,7 +329,7 @@ class MathPainter {
             valueText,
             valueText2 = undefined,
             backColor = Config.DISPLAY_GATE_BACK_COLOR) {
-        const labelFont = '12px sans-serif';
+        const labelFont = '12px ' + Config.DEFAULT_FONT_FAMILY;
         const valueFont = 'bold 12px monospace';
         painter.defer(() => {
             painter.ctx.font = labelFont;
@@ -352,7 +352,7 @@ class MathPainter {
                     h).paddedBy(4);
                 painter.trace(tracer => tracer.rect(r.x, r.y, r.w, r.h)).
                     thenFill(backColor).
-                    thenStroke('black');
+                    thenStroke(Config.FOREGROUND_COLOR);
             };
 
             let labelPainter = (w, h) => {
@@ -362,7 +362,7 @@ class MathPainter {
                     boundingRect.bottom()-h,
                     'left',
                     'bottom',
-                    'black',
+                    Config.FOREGROUND_COLOR,
                     labelFont,
                     boundingRect.w,
                     lineHeight,
@@ -376,7 +376,7 @@ class MathPainter {
                     boundingRect.bottom()-h,
                     'left',
                     'bottom',
-                    'black',
+                    Config.FOREGROUND_COLOR,
                     valueFont,
                     boundingRect.w,
                     lineHeight,
@@ -392,7 +392,7 @@ class MathPainter {
                     boundingRect.bottom(),
                     'left',
                     'bottom',
-                    'black',
+                    Config.FOREGROUND_COLOR,
                     valueFont,
                     boundingRect.w,
                     lineHeight,
@@ -467,7 +467,7 @@ class MathPainter {
             map(d => c.plus(d)).
             toArray(), '#666');
         // Rotation axis.
-        painter.strokeLine(c.plus(dAxis), c.plus(dAxis.times(-1)), 'black', 2);
+        painter.strokeLine(c.plus(dAxis), c.plus(dAxis.times(-1)), Config.FOREGROUND_COLOR, 2);
 
         // Find perpendicular axes, for drawing the rotation arrow circles.
         let norm = e => Math.sqrt(e.adjoint().times(e).cell(0, 0).real);
@@ -593,7 +593,7 @@ class MathPainter {
                 thenStroke('#BBB', 0.5);
 
             traceCouplingsWith(MathPainter._traceAmplitudePhaseDirection).
-                thenStroke('black');
+                thenStroke(Config.FOREGROUND_COLOR);
         }
 
         // Dividers.
@@ -616,7 +616,7 @@ class MathPainter {
                 'center',
                 'middle',
                 'red',
-                '16px sans-serif',
+                '16px ' + Config.DEFAULT_FONT_FAMILY,
                 drawArea.w,
                 drawArea.h);
         }

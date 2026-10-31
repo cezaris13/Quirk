@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {Config} from "../Config.js"
 import {GateBuilder} from "../circuit/Gate.js"
 import {Matrix} from "../math/Matrix.js"
 import {Point} from "../math/Point.js"
@@ -26,7 +27,7 @@ const NeGate = new GateBuilder().
     setDrawer(args => {
         GatePainting.paintLocationIndependentFrame(args);
         let {x, y} = args.rect.center();
-        args.painter.strokeLine(new Point(x - 6, y), new Point(x + 6, y), 'black', 2);
+        args.painter.strokeLine(new Point(x - 6, y), new Point(x + 6, y), Config.FOREGROUND_COLOR, 2);
     }).
     setKnownEffectToMatrix(Matrix.square(-1, 0, 0, -1)).
     gate;

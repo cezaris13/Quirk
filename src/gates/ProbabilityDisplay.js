@@ -228,7 +228,7 @@ function _paintMultiProbabilityDisplay_probabilityTexts(args) {
             y + d * (i + 0.5),
             'right',
             'middle',
-            'black',
+            Config.FOREGROUND_COLOR,
             '8pt monospace',
             w - 4,
             d);

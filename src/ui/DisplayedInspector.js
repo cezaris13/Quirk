@@ -341,7 +341,7 @@ class DisplayedInspector {
         painter.ctx.rotate(Math.PI * 0.02);
         painter.ctx.fillStyle = 'red';
         painter.ctx.textAlign = 'right';
-        painter.ctx.font = '16px sans-serif';
+        painter.ctx.font = '16px ' + Config.DEFAULT_FONT_FAMILY;
         painter.ctx.fillText("outputs change", 0, 0);
         painter.ctx.restore();
 
@@ -389,7 +389,7 @@ class DisplayedInspector {
         painter.ctx.translate(130, 195);
         painter.ctx.rotate(Math.PI * 0.05);
         painter.ctx.fillStyle = 'red';
-        painter.ctx.font = '16px sans-serif';
+        painter.ctx.font = '16px ' + Config.DEFAULT_FONT_FAMILY;
         painter.ctx.fillText("drag gates onto circuit", 0, 0);
         painter.ctx.restore();
 
@@ -429,7 +429,7 @@ class DisplayedInspector {
         painter.ctx.translate(70, fy-3);
         painter.ctx.rotate(Math.PI * -0.01);
         painter.ctx.fillStyle = 'red';
-        painter.ctx.font = '16px sans-serif';
+        painter.ctx.font = '16px ' + Config.DEFAULT_FONT_FAMILY;
         painter.ctx.fillText("use controls", 0, 0);
         painter.ctx.restore();
 

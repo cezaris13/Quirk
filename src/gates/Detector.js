@@ -196,7 +196,7 @@ function drawWedge(args, axis) {
     args.painter.trace(trace => {
         trace.ctx.arc(x, y, r, τ*3/4, τ/4);
         trace.ctx.lineTo(x, y - r - 1);
-    }).thenStroke('black', 2).thenFill(Config.TIME_DEPENDENT_HIGHLIGHT_COLOR);
+    }).thenStroke(Config.FOREGROUND_COLOR, 2).thenFill(Config.TIME_DEPENDENT_HIGHLIGHT_COLOR);
     args.painter.printLine(axis, args.rect, 0.5, undefined, undefined, undefined, 0.5);
 }
 
@@ -222,8 +222,8 @@ function drawClick(args, axis) {
         axis === undefined ? 0 : -5,
         'center',
         'middle',
-        'black',
-        'bold 16px sans-serif',
+        Config.FOREGROUND_COLOR,
+        'bold 16px ' + Config.DEFAULT_FONT_FAMILY,
         r*2.8,
         r*2.8,
         undefined,
@@ -236,8 +236,8 @@ function drawClick(args, axis) {
             10,
             'center',
             'middle',
-            'black',
-            'bold 16px sans-serif',
+            Config.FOREGROUND_COLOR,
+            'bold 16px ' + Config.DEFAULT_FONT_FAMILY,
             r * 2.8,
             r * 2.8,
             undefined,
@@ -268,7 +268,7 @@ function drawControlBulb(args, axis) {
             args.painter.strokeLine(p.offsetBy(-r, -r), p.offsetBy(+r, +r));
             break;
         case 'Z':
-            args.painter.fillCircle(p, 5, "black");
+            args.painter.fillCircle(p, 5, Config.FOREGROUND_COLOR);
             break;
         default:
             throw new DetailedError('Unrecognized axis.', {axis});
