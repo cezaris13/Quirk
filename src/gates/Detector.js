@@ -440,4 +440,13 @@ Detectors.all = [
     Detectors.ZDetectControlClear,
 ];
 
-export {Detectors}
+export {
+    Detectors,
+    sampleMeasure,
+    detectorStatTexture,
+    withClearedControls,
+    drawWedge,
+    drawClick,
+    drawHighlight,
+    controlMaskTex,
+}

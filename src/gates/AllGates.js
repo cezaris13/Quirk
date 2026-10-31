@@ -54,6 +54,7 @@ import {QuarterTurnGates} from "./QuarterTurnGates.js"
 import {ReverseBitsGateFamily} from "./ReverseBitsGate.js"
 import {SampleDisplayFamily} from "./SampleDisplay.js"
 import {Detectors} from "./Detector.js"
+import {QndGates} from "./QndGates.js"
 import {SpacerGate} from "./SpacerGate.js"
 import {SwapGateHalf} from "./SwapGateHalf.js"
 import {UniversalNotGate} from "./Impossible_UniversalNotGate.js"
@@ -153,6 +154,7 @@ Gates.KnownToSerializer = [
     ...CountingGates.all,
     ...CycleBitsGates.all,
     ...Detectors.all,
+    ...QndGates.all,
     ...ExponentiatingGates.all,
     ...FourierTransformGates.all,
     ...HalfTurnGates.all,
@@ -259,6 +261,14 @@ Gates.TopToolboxGroups = [
             Detectors.ZDetector, Detectors.ZDetectControlClear,
             Detectors.YDetector, Detectors.YDetectControlClear,
             Detectors.XDetector, Detectors.XDetectControlClear,
+        ]
+    },
+    {
+        hint: "QND (biased noise)",
+        gates: [
+            QndGates.ParityReadout, Controls.ZParityControl,
+            QndGates.ResetPlus, Controls.XParityControl,
+            QndGates.ResetZero, undefined,
         ]
     },
     {

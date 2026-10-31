@@ -174,6 +174,10 @@ suite.test("knownNonUnitaryGates", () => {
         'XDetectControlReset',
         'YDetectControlReset',
         'ZDetectControlReset',
+        // QND fork: parity readout and measure-then-reprepare resets.
+        'QNDread',
+        'reset+',
+        'reset0',
     ]));
 });
 
@@ -237,5 +241,9 @@ suite.test("knownDynamicGateFamilies", () => {
         'XDetectControlReset',
         'YDetectControlReset',
         'ZDetectControlReset',
+        // QND fork: parity readout and measure-then-reprepare resets.
+        'QNDread',
+        'reset+',
+        'reset0',
     ]));
 });
