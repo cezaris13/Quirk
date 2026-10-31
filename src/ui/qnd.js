@@ -15,8 +15,9 @@
 import {QndView} from "./qndView.js"
 
 /**
- * Wires up the paper-style checks toggle: the checkbox and the P shortcut switch every QND parity check
- * in the circuit between one M_{P⊗k} box and its expanded parity controls.
+ * Wires up the paper-style checks toggles: the checkbox and the P shortcut switch every QND parity check
+ * in the circuit between one M_{P⊗k} box and its expanded parity controls; the checkbox and the I shortcut
+ * show or hide the box's Z/X input tabs.
  */
 function initQnd() {
     let compactBox = document.getElementById('qnd-compact');
@@ -27,16 +28,30 @@ function initQnd() {
         });
     }
 
+    let tabsBox = document.getElementById('qnd-tabs');
+    if (tabsBox) {
+        tabsBox.checked = QndView.tabs;
+        tabsBox.addEventListener('change', () => {
+            QndView.tabs = tabsBox.checked;
+        });
+    }
+
     document.addEventListener('keydown', e => {
         let t = e.target;
         let typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
         if (typing || e.ctrlKey || e.metaKey || e.altKey) {
             return;
         }
-        if (e.key.toLowerCase() === 'p') {
+        let key = e.key.toLowerCase();
+        if (key === 'p') {
             QndView.compact = !QndView.compact;
             if (compactBox) {
                 compactBox.checked = QndView.compact;
+            }
+        } else if (key === 'i') {
+            QndView.tabs = !QndView.tabs;
+            if (tabsBox) {
+                tabsBox.checked = QndView.tabs;
             }
         }
     });

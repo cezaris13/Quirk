@@ -585,22 +585,34 @@ class DisplayedCircuit {
         ctx.strokeStyle = Config.DEFAULT_STROKE_COLOR;
         ctx.stroke();
 
-        // Faint pass-through lines on the unmeasured wires the box covers.
-        let measured = new Set(check.rows);
+        // Input tabs on measured wires, faint pass-through lines on the others.
+        let pauliOfRow = new Map(check.rows.map((row, i) => [row, check.paulis[i]]));
         for (let row = firstRow; row <= lastRow; row++) {
-            if (measured.has(row)) {
-                continue;
-            }
             let y = this.gateRect(row, col).center().y;
-            ctx.save();
-            ctx.setLineDash([3, 3]);
-            ctx.globalAlpha = 0.45;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(box.x, y);
-            ctx.lineTo(box.right(), y);
-            ctx.stroke();
-            ctx.restore();
+            if (pauliOfRow.has(row)) {
+                if (!QndView.tabs) {
+                    continue;
+                }
+                let tab = new Rect(box.x, y - 7, 11, 14);
+                ctx.fillStyle = pauliOfRow.get(row) === 'Z' ? '#0f8a6c' : '#4f46c8';
+                ctx.fillRect(tab.x, tab.y, tab.w, tab.h);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 9px ' + Config.DEFAULT_FONT_FAMILY;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(pauliOfRow.get(row), tab.x + tab.w / 2, y + 0.5);
+                ctx.textBaseline = 'alphabetic';
+            } else {
+                ctx.save();
+                ctx.setLineDash([3, 3]);
+                ctx.globalAlpha = 0.45;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(box.x, y);
+                ctx.lineTo(box.right(), y);
+                ctx.stroke();
+                ctx.restore();
+            }
         }
 
         // "M" with the measured Pauli product as subscript.
@@ -611,21 +623,49 @@ class DisplayedCircuit {
         let cx = box.center().x;
         let cy = box.center().y;
         let serif = "QndMath, 'STIX Two Math', 'Cambria Math', 'Times New Roman', Georgia, serif";
+        ctx.textBaseline = 'alphabetic';
         let mainFont = '15px ' + serif;
-        let subFont = '10px ' + serif;
         ctx.font = mainFont;
         let mWidth = ctx.measureText('M').width;
-        ctx.font = subFont;
-        let x = cx - (mWidth + Math.min(ctx.measureText(subscript).width, box.w - mWidth - 4)) / 2 + 5;
         let isTall = box.h >= 70;
-        let y = isTall ? cy - 8 : cy + 4;
+
+        // Keep the label inside the box (right of the input tabs): shrink the subscript, except that in tall
+        // boxes long mixed products like XZXZXZ wrap onto several lines instead.
+        let left = box.x + (QndView.tabs ? 13 : 3);
+        let subWidthLimit = box.right() - 3 - left - mWidth;
+        let subSize = 10;
+        let measureSub = text => {
+            ctx.font = subSize + 'px ' + serif;
+            return ctx.measureText(text).width;
+        };
+        let wraps = isTall && !isUniform;
+        while (!wraps && subSize > 7 && measureSub(subscript) > subWidthLimit) {
+            subSize--;
+        }
+        let subLines = [subscript];
+        if (wraps && measureSub(subscript) > subWidthLimit) {
+            subLines = [''];
+            for (let ch of subscript) {
+                let line = subLines[subLines.length - 1] + ch;
+                if (line.length > 1 && measureSub(line) > subWidthLimit) {
+                    subLines.push(ch);
+                } else {
+                    subLines[subLines.length - 1] = line;
+                }
+            }
+        }
+        let subWidth = Math.min(subWidthLimit, Math.max(...subLines.map(measureSub)));
+        let subLineHeight = subSize + 1;
+        let extraHeight = (subLines.length - 1) * subLineHeight;
+        let x = left + (box.right() - 3 - left - mWidth - subWidth) / 2;
+        let y = (isTall ? cy - 8 : cy + 4) - extraHeight / 2;
         ctx.fillStyle = Config.DEFAULT_TEXT_COLOR;
-        ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
         ctx.font = mainFont;
         ctx.fillText('M', x, y);
-        ctx.font = subFont;
-        ctx.fillText(subscript, x + mWidth, y + 4, box.w - mWidth - 4);
+        ctx.font = subSize + 'px ' + serif;
+        subLines.forEach((line, i) => ctx.fillText(line, x + mWidth, y + 4 + i * subLineHeight, subWidthLimit));
+        cy += extraHeight / 2;
 
         // The outcome s goes to the readout wire.
         if (isTall) {

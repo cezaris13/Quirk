@@ -153,6 +153,24 @@ const redrawNow = () => {
     shown.paint(painter, stats);
     painter.paintDeferred();
 
+    // Cross-fade from the snapshot taken before the QND view changed.
+    let anim = QndView.anim;
+    if (anim !== undefined) {
+        let progress = (performance.now() - anim.t0) / anim.dur;
+        if (progress >= 1) {
+            QndView.anim = undefined;
+        } else {
+            let alpha = Math.max(0, 1 - progress / 0.6);
+            if (alpha > 0) {
+                painter.ctx.save();
+                painter.ctx.globalAlpha = alpha * alpha;
+                painter.ctx.drawImage(anim.img, 0, 0);
+                painter.ctx.restore();
+            }
+            window.requestAnimationFrame(() => redrawThrottle.trigger());
+        }
+    }
+
     displayed.get().hand.paintCursor(painter);
     scrollBlocker.setBlockers(painter.touchBlockers, painter.desiredCursorStyle);
     canvas.style.cursor = painter.desiredCursorStyle || 'auto';
@@ -165,6 +183,18 @@ const redrawNow = () => {
 
 redrawThrottle = new CooldownThrottle(redrawNow, Config.REDRAW_COOLDOWN_MILLIS, 0.1, true);
 QndView.requestRedraw = () => redrawThrottle.trigger();
+QndView.onBeforeViewChange = () => {
+    let reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+        QndView.anim = undefined;
+        return;
+    }
+    let img = document.createElement('canvas');
+    img.width = canvas.width;
+    img.height = canvas.height;
+    img.getContext('2d').drawImage(canvas, 0, 0);
+    QndView.anim = {img, t0: performance.now(), dur: 320};
+};
 window.addEventListener('resize', () => redrawThrottle.trigger(), false);
 displayed.observable().subscribe(() => redrawThrottle.trigger());
 

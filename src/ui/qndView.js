@@ -13,10 +13,18 @@
  */
 
 /**
- * Shared view state for the QND fork: whether QND parity checks are drawn paper-style, as one M_{P⊗k} box.
+ * Shared view state for the QND fork: whether QND parity checks are drawn paper-style, as one M_{P⊗k} box,
+ * and whether that box marks its measured wires with coloured Z/X input tabs.
  */
 
 let compact = true;
+let tabs = true;
+try {
+    if (localStorage.getItem('quirk-qnd-tabs') === '0') {
+        tabs = false;
+    }
+} catch (_) {
+}
 try {
     if (localStorage.getItem('quirk-qnd-compact') === '0') {
         compact = false;
@@ -32,6 +40,9 @@ const QndView = {
         return compact;
     },
     set compact(v) {
+        if (!!v !== compact) {
+            QndView.onBeforeViewChange();
+        }
         compact = !!v;
         QndView.toggled.clear();
         try {
@@ -40,10 +51,29 @@ const QndView = {
         }
         QndView.requestRedraw();
     },
+    get tabs() {
+        return tabs;
+    },
+    set tabs(v) {
+        if (!!v !== tabs) {
+            QndView.onBeforeViewChange();
+        }
+        tabs = !!v;
+        try {
+            localStorage.setItem('quirk-qnd-tabs', tabs ? '1' : '0');
+        } catch (_) {
+        }
+        QndView.requestRedraw();
+    },
+    /** Called just before the drawing changes, so the old picture can be cross-faded out. */
+    onBeforeViewChange() {},
+    /** Current cross-fade, as {img, t0, dur}. */
+    anim: undefined,
     isCompact(col) {
         return compact !== QndView.toggled.has(col);
     },
     toggle(col) {
+        QndView.onBeforeViewChange();
         if (QndView.toggled.has(col)) {
             QndView.toggled.delete(col);
         } else {
