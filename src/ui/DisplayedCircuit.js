@@ -1064,14 +1064,8 @@ class DisplayedCircuit {
         let ctx = painter.ctx;
         ctx.save();
 
-        let radius = 4;
         ctx.beginPath();
-        ctx.moveTo(box.x + radius, box.y);
-        ctx.arcTo(box.right(), box.y, box.right(), box.bottom(), radius);
-        ctx.arcTo(box.right(), box.bottom(), box.x, box.bottom(), radius);
-        ctx.arcTo(box.x, box.bottom(), box.x, box.y, radius);
-        ctx.arcTo(box.x, box.y, box.right(), box.y, radius);
-        ctx.closePath();
+        GatePainting.traceRoundRect(ctx, box, 4);
         ctx.fillStyle = Config.GATE_FILL_COLOR;
         ctx.fill();
         ctx.lineWidth = 1.3;

@@ -46,11 +46,6 @@ function initQnd(revision) {
     }
 
     let recordBox = document.getElementById('qnd-record');
-    QndView.onRecordChange = () => {
-        if (recordBox) {
-            recordBox.checked = QndView.record;
-        }
-    };
     if (recordBox) {
         recordBox.checked = QndView.record;
         recordBox.addEventListener('change', () => {
@@ -66,7 +61,7 @@ function initQnd(revision) {
         });
     }
 
-    // Keyboard shortcuts: P (paper-style checks), I (input tabs), C/V (classical record).
+    // Keyboard shortcuts: P (paper-style checks), I (input tabs), C (classical record).
     document.addEventListener('keydown', e => {
         let t = e.target;
         let typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
@@ -84,8 +79,11 @@ function initQnd(revision) {
             if (tabsBox) {
                 tabsBox.checked = QndView.tabs;
             }
-        } else if (key === 'c' || key === 'v') {
+        } else if (key === 'c') {
             QndView.record = !QndView.record;
+            if (recordBox) {
+                recordBox.checked = QndView.record;
+            }
         } else {
             return;
         }

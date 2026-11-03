@@ -90,9 +90,7 @@ const QndView = {
         } catch (_) {
         }
         QndView.requestRedraw();
-        QndView.onRecordChange();
     },
-    onRecordChange() {},
     onBeforeViewChange() {},
     /** Current compact/expand animation, as {t0, dur, ...}. */
     anim: undefined,
@@ -145,14 +143,6 @@ function qndCheckInColumn(col) {
         return undefined;
     }
     return {rows, paulis, readRow};
-}
-
-/**
- * @param {!int} k
- * @returns {!string} e.g. "c₁₂".
- */
-function recName(k) {
-    return 'c' + String(k).split('').map(d => '₀₁₂₃₄₅₆₇₈₉'[+d]).join('');
 }
 
 /**
@@ -347,4 +337,4 @@ function resolveClassical(circuitJson) {
     return Object.assign({}, circuitJson, {cols: out});
 }
 
-export {QndView, qndCheckInColumn, computeRecord, recordNames, recName, parseRecArg, resolveClassical, COND_RE}
+export {QndView, qndCheckInColumn, computeRecord, parseRecArg, resolveClassical, COND_RE}

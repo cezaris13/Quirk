@@ -445,8 +445,5 @@ export {
     sampleMeasure,
     detectorStatTexture,
     withClearedControls,
-    drawWedge,
     drawClick,
-    drawHighlight,
-    controlMaskTex,
 }
