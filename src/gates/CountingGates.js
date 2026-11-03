@@ -74,9 +74,9 @@ let STAIRCASE_DRAWER = (timeOffset, steps, flip=false) => args => {
         args.painter.strokeLine(curve[i], curve[i+1], Config.FOREGROUND_COLOR);
     }
     if (steps === 2 && t < 0.5) {
-        args.painter.fillRect(args.rect, 'white');
-        args.painter.fillRect(args.rect, 'white');
-        args.painter.fillRect(args.rect, 'white');
+        args.painter.fillRect(args.rect, Config.GATE_FILL_COLOR);
+        args.painter.fillRect(args.rect, Config.GATE_FILL_COLOR);
+        args.painter.fillRect(args.rect, Config.GATE_FILL_COLOR);
     }
     args.painter.ctx.restore();
 };

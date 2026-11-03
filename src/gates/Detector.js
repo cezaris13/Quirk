@@ -214,7 +214,7 @@ function drawClick(args, axis) {
     args.painter.ctx.save();
     args.painter.ctx.translate(args.rect.center().x, args.rect.center().y);
     args.painter.ctx.rotate(axis === undefined ? Math.PI/3 : Math.PI/4);
-    args.painter.ctx.strokeStyle = 'white';
+    args.painter.ctx.strokeStyle = Config.BACKGROUND_COLOR_CIRCUIT;
     args.painter.ctx.lineWidth = 3;
     args.painter.print(
         '*click*',
@@ -288,7 +288,7 @@ function drawDetectClearReset(args, axis) {
     let clearWireRect = fullRect.rightHalf();
     clearWireRect.y += clearWireRect.h / 2 - 2;
     clearWireRect.h = 5;
-    args.painter.fillRect(clearWireRect, 'white');
+    args.painter.fillRect(clearWireRect, Config.BACKGROUND_COLOR_CIRCUIT);
     drawHighlight(args);
 
     // Draw text elements.

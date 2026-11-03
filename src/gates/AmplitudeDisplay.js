@@ -258,7 +258,7 @@ const AMPLITUDE_DRAWER_FROM_CUSTOM_STATS = GatePainting.makeDisplayDrawer(args =
         Config.FOREGROUND_COLOR,
         Config.SUPERPOSITION_FORE_COLOR,
         Config.SUPERPOSITION_BACK_COLOR,
-        `rgba(0, 0, 0, ${indicatorAlpha})`);
+        `rgba(${Config.SHADE_RGB}, ${indicatorAlpha})`);
 
     let forceSign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
     if (isIncoherent) {

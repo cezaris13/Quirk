@@ -101,7 +101,7 @@ function paintSampleDisplay(args) {
         _paintSampleDisplay_result(args);
     }
 
-    args.painter.strokeRect(args.rect, 'lightgray');
+    args.painter.strokeRect(args.rect, Config.BORDER_COLOR);
 }
 
 let SampleDisplayFamily = Gate.buildFamily(1, 16, (span, builder) => builder.

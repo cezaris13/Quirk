@@ -12,12 +12,51 @@
  * limitations under the License.
  */
 
+import {Config} from "../Config.js"
 import {QndView, computeRecord, parseRecArg, resolveClassical, COND_RE} from "./qndView.js"
+
+function initTheme() {
+    let button = document.getElementById('theme-button');
+    let show = theme => {
+        let root = document.documentElement;
+        // Switch at once, without the buttons' hover fade lagging behind the canvas.
+        root.classList.add('theme-switching');
+        root.setAttribute('data-theme', theme);
+        requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+        Config.setDarkTheme(theme === 'dark');
+        QndView.requestRedraw();
+        if (button) {
+            button.textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
+        }
+    };
+    let apply = (theme, persist) => {
+        show(theme);
+        if (persist) {
+            try {
+                localStorage.setItem('quirk-theme', theme);
+            } catch (_) {
+                // Storage may be unavailable (e.g. sandboxed frame).
+            }
+        }
+    };
+    show(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+    if (button) {
+        button.addEventListener('click', () => apply(
+            document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark',
+            true));
+    }
+    window.addEventListener('message', e => {
+        if (e.data && e.data.type === 'qnd-theme' && (e.data.theme === 'dark' || e.data.theme === 'light')) {
+            apply(e.data.theme, false);
+        }
+    });
+}
 
 /**
  * @param {!Revision} revision
  */
 function initQnd(revision) {
+    initTheme();
 
     // Resolve classical-record references whenever a circuit is committed.
     let originalCommit = revision.commit.bind(revision);

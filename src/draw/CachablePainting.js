@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {Config} from "../Config.js"
 import {Painter} from "./Painter.js"
 import {RestartableRng} from "../base/RestartableRng.js"
 
@@ -50,7 +51,7 @@ class CachablePainting {
      */
     paint(x, y, painter, key=undefined) {
         // Cache at the target's pixel density, so cached parts stay as sharp as the rest when zoomed in.
-        let cacheKey = painter.pixelRatio + ':' + key;
+        let cacheKey = painter.pixelRatio + ':' + Config.isDarkTheme + ':' + key;
         if (!this._cachedCanvases.has(cacheKey)) {
             let canvas = /** @type {!HTMLCanvasElement} */ document.createElement('canvas');
             let {width, height} = this.sizeFunc(key);

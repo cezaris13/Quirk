@@ -130,7 +130,7 @@ function _paintMultiProbabilityDisplay_grid(args) {
     if (d < 1) {
         args.painter.ctx.save();
         args.painter.ctx.globalAlpha *= 0.2;
-        painter.fillRect(args.rect, 'lightgray');
+        painter.fillRect(args.rect, Config.BORDER_COLOR);
         args.painter.ctx.restore();
         return;
     }
@@ -139,8 +139,8 @@ function _paintMultiProbabilityDisplay_grid(args) {
         for (let i = 1; i < n; i++) {
             tracer.line(x, y + d * i, x + w, y + d * i);
         }
-    }).thenStroke('lightgray', r <= 0 ? 1 : 1 / r);
-    painter.strokeRect(args.rect, 'lightgray');
+    }).thenStroke(Config.BORDER_COLOR, r <= 0 ? 1 : 1 / r);
+    painter.strokeRect(args.rect, Config.BORDER_COLOR);
 }
 
 function _paintMultiProbabilityDisplay_probabilityBars(args) {
@@ -162,7 +162,7 @@ function _paintMultiProbabilityDisplay_probabilityBars(args) {
     painter.ctx.lineTo(x, y + h);
     painter.ctx.lineTo(x, y);
 
-    painter.ctx.strokeStyle = 'gray';
+    painter.ctx.strokeStyle = Config.MUTED_TEXT_COLOR;
     painter.ctx.lineWidth = 1;
     painter.ctx.stroke();
     painter.ctx.fillStyle = Config.DISPLAY_GATE_FORE_COLOR;
@@ -190,7 +190,7 @@ function _paintMultiProbabilityDisplay_logarithmHints(args) {
     painter.ctx.lineTo(x, y + h);
 
     painter.ctx.lineWidth = 1;
-    painter.ctx.strokeStyle = '#CCC';
+    painter.ctx.strokeStyle = Config.FAINT_LINE_COLOR;
     painter.ctx.stroke();
     painter.ctx.restore();
 }

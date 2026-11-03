@@ -2010,7 +2010,7 @@ class DisplayedCircuit {
             "Local wire states\n(Chance/Bloch)",
             new Rect(x, bottom+4, 190, 40),
             new Point(0.5, 0),
-            'gray');
+            Config.MUTED_TEXT_COLOR);
 
         this._drawOutputSuperpositionDisplay(painter, stats, hand);
     }
@@ -2120,7 +2120,7 @@ class DisplayedCircuit {
             gridRect.bottom() + 3,
             'left',
             'top',
-            'gray',
+            Config.MUTED_TEXT_COLOR,
             '12px ' + Config.DEFAULT_FONT_FAMILY,
             100,
             20);
@@ -2319,7 +2319,7 @@ function _drawLabelsReasonablyFast(painter, dy, n, labeller, boundingWidth) {
     let pad = 1/scale;
     ctx.scale(scale, scale);
     ctx.translate(0, dy*0.5/scale - h*0.5);
-    ctx.fillStyle = 'lightgray';
+    ctx.fillStyle = Config.BORDER_COLOR;
     if (h < step*0.95) {
         for (let i = 0; i < n; i++) {
             ctx.fillRect(0, step*i, w + 2*pad, h);

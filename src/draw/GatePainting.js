@@ -57,7 +57,7 @@ GatePainting.traceRoundRect = (ctx, rect, radius = Config.GATE_CORNER_RADIUS) =>
  * @param {!string=} borderColor
  * @param {!number=} borderThickness
  */
-GatePainting.paintRounded = (painter, rect, paint, borderColor = 'lightgray', borderThickness = 1) => {
+GatePainting.paintRounded = (painter, rect, paint, borderColor = Config.BORDER_COLOR, borderThickness = 1) => {
     let ctx = painter.ctx;
     ctx.save();
     ctx.beginPath();
@@ -130,7 +130,7 @@ GatePainting.MAKE_HIGHLIGHTED_DRAWER =
 /**
  * @param {!GateDrawParams} args
  */
-GatePainting.DEFAULT_DRAWER = GatePainting.MAKE_HIGHLIGHTED_DRAWER();
+GatePainting.DEFAULT_DRAWER = args => GatePainting.MAKE_HIGHLIGHTED_DRAWER()(args);
 
 /**
  * @param {!Rect} gateRect
@@ -154,11 +154,11 @@ GatePainting.paintResizeTab = args => {
     let trimRect = rect.skipLeft(2).skipRight(2);
     let {x: cx, y: cy} = trimRect.center();
     let backColor = args.isResizeHighlighted ? Config.HIGHLIGHTED_GATE_FILL_COLOR : Config.GATE_FILL_COLOR;
-    let foreColor = args.isResizeHighlighted ? '#222' : 'gray';
+    let foreColor = args.isResizeHighlighted ? Config.FOREGROUND_COLOR : Config.MUTED_TEXT_COLOR;
     args.painter.ctx.save();
     args.painter.ctx.globalAlpha *= args.isResizeHighlighted ? 1 : 0.7;
     args.painter.fillRect(trimRect, backColor);
-    args.painter.strokeRect(trimRect, 'gray');
+    args.painter.strokeRect(trimRect, Config.MUTED_TEXT_COLOR);
     args.painter.ctx.restore();
     args.painter.print('resize', cx, cy, 'center', 'middle', foreColor, 'monospace', trimRect.w - 4, trimRect.h - 4);
     args.painter.trace(tracer => {
@@ -319,7 +319,8 @@ GatePainting.makeLocationIndependentGateDrawer = normalFillColor => args => {
 /**
  * @param {!GateDrawParams} args
  */
-GatePainting.LOCATION_INDEPENDENT_GATE_DRAWER = GatePainting.makeLocationIndependentGateDrawer(Config.GATE_FILL_COLOR);
+GatePainting.LOCATION_INDEPENDENT_GATE_DRAWER =
+    args => GatePainting.makeLocationIndependentGateDrawer(Config.GATE_FILL_COLOR)(args);
 
 /**
  * @param {!Array.<!string>} labels
@@ -341,7 +342,7 @@ GatePainting.SECTIONED_DRAWER_MAKER = (labels, dividers) => args => {
         if (i < labels.length - 1) {
             p2 = p + dividers[i];
             let cy = args.rect.y + args.rect.h*p2;
-            args.painter.strokeLine(new Point(args.rect.x, cy), new Point(args.rect.right(), cy), '#BBB');
+            args.painter.strokeLine(new Point(args.rect.x, cy), new Point(args.rect.right(), cy), Config.FAINT_LINE_COLOR);
         } else {
             p2 = 1;
         }
@@ -361,7 +362,8 @@ GatePainting.SECTIONED_DRAWER_MAKER = (labels, dividers) => args => {
     GatePainting.paintResizeTab(args);
 };
 
-const DISPLAY_GATE_DEFAULT_DRAWER = GatePainting.MAKE_HIGHLIGHTED_DRAWER(Config.DISPLAY_GATE_IN_TOOLBOX_FILL_COLOR);
+const DISPLAY_GATE_DEFAULT_DRAWER =
+    args => GatePainting.MAKE_HIGHLIGHTED_DRAWER(Config.DISPLAY_GATE_IN_TOOLBOX_FILL_COLOR)(args);
 
 GatePainting.makeDisplayDrawer = (statePainter, showBorder = true) => args => {
     if (args.positionInCircuit === undefined) {
@@ -534,10 +536,10 @@ function _eraseWiresForPermutation(args) {
         let isMeasured2 = args.stats.circuitDefinition.locIsMeasured(loc.offsetBy(1, 0));
 
         for (let dy of isMeasured1 ? [-1, +1] : [0]) {
-            args.painter.strokeLine(p.offsetBy(0, dy), c.offsetBy(1, dy), 'white');
+            args.painter.strokeLine(p.offsetBy(0, dy), c.offsetBy(1, dy), Config.BACKGROUND_COLOR_CIRCUIT);
         }
         for (let dy of isMeasured2 ? [-1, +1] : [0]) {
-            args.painter.strokeLine(c.offsetBy(-1, dy), q.offsetBy(0, dy), 'white');
+            args.painter.strokeLine(c.offsetBy(-1, dy), q.offsetBy(0, dy), Config.BACKGROUND_COLOR_CIRCUIT);
         }
     }
 }
@@ -555,7 +557,7 @@ GatePainting.PERMUTATION_DRAWER = args => {
     if (args.isHighlighted ||
             args.isResizeHighlighted ||
             args.stats.circuitDefinition.colHasControls(args.positionInCircuit.col)) {
-        GatePainting.paintBackground(args, '#F3F3F3', '#F3F3F3');
+        GatePainting.paintBackground(args, Config.SECONDARY_FILL_COLOR, Config.SECONDARY_FILL_COLOR);
         GatePainting.paintOutline(args);
         GatePainting.paintResizeTab(args);
     } else {

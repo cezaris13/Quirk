@@ -122,4 +122,71 @@ Config.RECORD_BAD_COLOR = '#c0392b';      // Record references that aren't avail
 Config.CLASSICAL_WIRE_COLOR = '#a9a7a0';
 Config.CLASSICAL_WIRE_LABEL_COLOR = '#8a8984';
 
+// Secondary drawing colors (borders, grid lines, tooltips).
+Config.BORDER_COLOR = 'lightgray';            // Display borders and grids.
+Config.FAINT_LINE_COLOR = '#BBB';             // Bloch sphere and amplitude guide lines.
+Config.INPUT_GATE_FILL_COLOR = '#DDD';
+Config.SECONDARY_FILL_COLOR = '#F3F3F3';      // Location-independent and permutation gate backgrounds.
+Config.DISPLAY_OUTLINE_COLOR = '#040';        // Density matrix probability marks.
+Config.SHADE_RGB = '0, 0, 0';                 // Base of translucent indicator overlays (rgba).
+Config.TOOLTIP_BACK_COLOR = '#F9FFF9';
+Config.TOOLTIP_TITLE_COLOR = 'blue';
+
+/** Dark theme values for the colors above; Config.setDarkTheme swaps them in. */
+Config.DARK_THEME_COLORS = {
+    FOREGROUND_COLOR: '#dfe1e5',
+    DEFAULT_STROKE_COLOR: '#dfe1e5',
+    DEFAULT_TEXT_COLOR: '#dfe1e5',
+    DEFAULT_FILL_COLOR: '#2b2d30',
+    GATE_FILL_COLOR: '#2b2d30',
+    HIGHLIGHTED_GATE_FILL_COLOR: '#4a3b26',
+    TIME_DEPENDENT_HIGHLIGHT_COLOR: '#33301f',
+    DISPLAY_GATE_IN_TOOLBOX_FILL_COLOR: '#303237',
+    DISPLAY_GATE_BACK_COLOR: '#232529',
+    DISPLAY_GATE_FORE_COLOR: '#43474e',
+    OPERATION_BACK_COLOR: '#2f2b1f',
+    OPERATION_FORE_COLOR: '#d9a93e',
+    SUPERPOSITION_BACK_COLOR: '#1f2530',
+    SUPERPOSITION_MID_COLOR: '#2e4a6a',
+    SUPERPOSITION_FORE_COLOR: '#58a6ff',
+    BACKGROUND_COLOR: '#1e1f22',
+    BACKGROUND_COLOR_CIRCUIT: '#1e1f22',
+    BACKGROUND_COLOR_TOOLBOX: '#232427',
+    GATE_OUTLINE_COLOR: '#9a9da3',
+    MUTED_TEXT_COLOR: '#8a8d93',
+    PARITY_LABEL_COLOR: '#ff9a6b',
+    GATE_HIGHLIGHT_OUTLINE_COLOR: '#f2a65a',
+    TOOLBOX_GATE_SHADOW_COLOR: 'rgba(0, 0, 0, 0.5)',
+    QND_ACCENT_COLOR: '#3fd0a4',
+    QND_FILL_COLOR: '#173a32',
+    QND_X_TAB_COLOR: '#9a8cff',
+    QND_TAB_TEXT_COLOR: '#1e1f22',
+    QND_CONSUMED_WIRE_COLOR: '#606369',
+    RECORD_COLOR: '#f0b34a',
+    RECORD_BAD_COLOR: '#ff7b72',
+    CLASSICAL_WIRE_COLOR: '#4f5258',
+    CLASSICAL_WIRE_LABEL_COLOR: '#8a8d93',
+    BORDER_COLOR: '#393b40',
+    FAINT_LINE_COLOR: '#45484d',
+    INPUT_GATE_FILL_COLOR: '#35373b',
+    SECONDARY_FILL_COLOR: '#28292c',
+    DISPLAY_OUTLINE_COLOR: '#7ee2a8',
+    SHADE_RGB: '255, 255, 255',
+    TOOLTIP_BACK_COLOR: '#24262a',
+    TOOLTIP_TITLE_COLOR: '#8ab4f8',
+};
+const LIGHT_THEME_COLORS = {};
+for (let key of Object.keys(Config.DARK_THEME_COLORS)) {
+    LIGHT_THEME_COLORS[key] = Config[key];
+}
+Config.isDarkTheme = false;
+/**
+ * Switches every themed color at once. Drawing code reads Config at paint time, so a redraw shows the new theme.
+ * @param {!boolean} dark
+ */
+Config.setDarkTheme = dark => {
+    Object.assign(Config, dark ? Config.DARK_THEME_COLORS : LIGHT_THEME_COLORS);
+    Config.isDarkTheme = dark;
+};
+
 export {Config}

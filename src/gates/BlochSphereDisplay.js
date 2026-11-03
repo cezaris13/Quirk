@@ -125,7 +125,7 @@ function paintBlochSphereDisplay(
         for (let d of [dx, dy, dz]) {
             trace.line(c.x - d.x, c.y - d.y, c.x + d.x, c.y + d.y);
         }
-    }).thenStroke('#BBB');
+    }).thenStroke(Config.FAINT_LINE_COLOR);
 
     let [x, y, z] = [NaN, NaN, NaN];
     if (qubitDensityMatrix.hasNaN()) {

@@ -26,7 +26,7 @@ let POST_SELECT_DRAWER = args => {
     if (args.isInToolbox  || args.isHighlighted) {
         GatePainting.DEFAULT_DRAWER(args);
     } else {
-        args.painter.fillRect(args.rect, 'white');
+        args.painter.fillRect(args.rect, Config.GATE_FILL_COLOR);
         GatePainting.paintGateSymbol(args);
     }
 

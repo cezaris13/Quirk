@@ -72,7 +72,7 @@ class MathPainter {
                 drawArea.h);
         }
 
-        painter.strokeRect(drawArea, 'lightgray');
+        painter.strokeRect(drawArea, Config.BORDER_COLOR);
 
 
         // Tool tips.
@@ -239,7 +239,7 @@ class MathPainter {
                        amplitudeProbabilityFillColor,
                        backColor = Config.DISPLAY_GATE_BACK_COLOR,
                        amplitudePhaseStrokeColor = undefined,
-                       logCircleStrokeColor = '#AAA') {
+                       logCircleStrokeColor = Config.FAINT_LINE_COLOR) {
         let numCols = matrix.width();
         let numRows = matrix.height();
         let buf = matrix.rawBuffer();
@@ -271,7 +271,7 @@ class MathPainter {
             if (amplitudeProbabilityFillColor !== undefined) {
                 traceCellsWith(MathPainter._traceAmplitudeProbabilitySquare).
                     thenFill(amplitudeProbabilityFillColor).
-                    thenStroke('lightgray', 0.5);
+                    thenStroke(Config.BORDER_COLOR, 0.5);
             }
 
             // Circles.
@@ -287,7 +287,7 @@ class MathPainter {
 
         // Dividers.
         painter.trace(trace => trace.grid(x, y, drawArea.w, drawArea.h, numCols, numRows)).
-            thenStroke('lightgray');
+            thenStroke(Config.BORDER_COLOR);
 
         if (!hasNaN) {
             // Phase lines.
@@ -449,7 +449,7 @@ class MathPainter {
                 let d = projToPt(a);
                 trace.line(c.x - d.x, c.y - d.y, c.x + d.x, c.y + d.y);
             }
-        }).thenStroke('#BBB');
+        }).thenStroke(Config.FAINT_LINE_COLOR);
 
         let {angle, axis} = operation.qubitOperationToAngleAxisRotation();
         let axisVec = Matrix.col(...axis);
@@ -465,7 +465,7 @@ class MathPainter {
             reverse().
             concat(guideDeltas.map(d => d.times(-1))).
             map(d => c.plus(d)).
-            toArray(), '#666');
+            toArray(), Config.MUTED_TEXT_COLOR);
         // Rotation axis.
         painter.strokeLine(c.plus(dAxis), c.plus(dAxis.times(-1)), Config.FOREGROUND_COLOR, 2);
 
@@ -521,10 +521,10 @@ class MathPainter {
             ].map(d => arrowHeadRoot.plus(d));
             let interleaved = [].concat.apply([], arrowHeadPts.map(e => [e.x, e.y]));
 
-            painter.strokePath(arcPts, '#444');
+            painter.strokePath(arcPts, Config.FOREGROUND_COLOR);
             painter.trace(tracer => tracer.polygon(interleaved)).
                 thenFill(fillColor).
-                thenStroke('#444');
+                thenStroke(Config.FOREGROUND_COLOR);
         }
     }
 
@@ -583,14 +583,14 @@ class MathPainter {
         if (!hasNaN) {
             traceDiagonalWith(MathPainter._traceProbabilitySquare).
                 thenFill(fillColor).
-                thenStroke('#040', 0.5);
+                thenStroke(Config.DISPLAY_OUTLINE_COLOR, 0.5);
 
             traceCouplingsWith(MathPainter._traceAmplitudeProbabilityCircle).
                 thenFill(fillColor).
-                thenStroke('#040', 0.5);
+                thenStroke(Config.DISPLAY_OUTLINE_COLOR, 0.5);
 
             traceCouplingsWith(MathPainter._traceAmplitudeLogarithmCircle).
-                thenStroke('#BBB', 0.5);
+                thenStroke(Config.FAINT_LINE_COLOR, 0.5);
 
             traceCouplingsWith(MathPainter._traceAmplitudePhaseDirection).
                 thenStroke(Config.FOREGROUND_COLOR);
@@ -600,11 +600,11 @@ class MathPainter {
         let d = drawArea.w/numCols;
         if (d > 2) {
             painter.trace(trace => trace.grid(x, y, drawArea.w, drawArea.h, numCols, numRows)).
-                thenStroke('lightgray', Math.min(1, 2/Math.log(numCols)));
+                thenStroke(Config.BORDER_COLOR, Math.min(1, 2/Math.log(numCols)));
         } else {
            painter.ctx.save();
            painter.ctx.globalAlpha *= 0.2;
-           painter.fillRect(drawArea, 'lightgray');
+           painter.fillRect(drawArea, Config.BORDER_COLOR);
            painter.ctx.restore();
         }
 

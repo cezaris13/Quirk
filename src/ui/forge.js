@@ -93,7 +93,7 @@ function initForge(revision, obsIsAnyOverlayShowing) {
             if (!op.isUnitary(0.009)) {
                 painter.printParagraph('NOT UNITARY', rect2, new Point(0.5, 0.5), 'red', 24);
             } else  if (op.width() !== 2) {
-                painter.printParagraph('(Not a 1-qubit rotation)', rect2, new Point(0.5, 0.5), '#666', 20);
+                painter.printParagraph('(Not a 1-qubit rotation)', rect2, new Point(0.5, 0.5), Config.MUTED_TEXT_COLOR, 20);
             } else {
                 MathPainter.paintBlochSphereRotation(
                     painter,
