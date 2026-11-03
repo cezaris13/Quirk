@@ -42,7 +42,7 @@ function drawReset(args, label) {
     GatePainting.paintBackground(args);
     GatePainting.paintOutline(args);
     args.painter.printLine(label, args.rect, 0.5, undefined, 16, undefined, 0.5);
-    args.painter.printLine('reset', args.rect.skipTop(args.rect.h - 11), 0.5, '#666', 9, undefined, 0);
+    args.painter.printLine('reset', args.rect.skipTop(args.rect.h - 11), 0.5, Config.MUTED_TEXT_COLOR, 9, undefined, 0);
 }
 
 let QndGates = {};
@@ -57,9 +57,9 @@ QndGates.ParityReadout = new GateBuilder().
         'Data qubits are only used as controls, so Z errors stay Z errors (bias-preserving).').
     setDrawer(args => {
         let rect = args.rect;
-        GatePainting.paintBackground(args, '#e3f4ee', '#e3f4ee');
+        GatePainting.paintBackground(args, Config.QND_FILL_COLOR, Config.QND_FILL_COLOR);
         args.painter.trace(trace => GatePainting.traceRoundRect(trace.ctx, rect.paddedBy(-0.5))).
-            thenStroke('#0f8a6c', 1.8);
+            thenStroke(Config.QND_ACCENT_COLOR, 1.8);
 
         // Meter glyph.
         let c = rect.center();
@@ -68,7 +68,7 @@ QndGates.ParityReadout = new GateBuilder().
             trace.ctx.arc(c.x, c.y + r * 0.45, r, Math.PI, 2 * Math.PI);
         }).thenStroke(Config.FOREGROUND_COLOR, 1.5);
         args.painter.strokeLine(c.offsetBy(0, r * 0.45), c.offsetBy(r * 0.6, -r * 0.55));
-        args.painter.printLine('QND', rect, 0.5, '#0f8a6c', 9, undefined, 0);
+        args.painter.printLine('QND', rect, 0.5, Config.QND_ACCENT_COLOR, 9, undefined, 0);
         drawClick(args, undefined);
     }).
     markAsReachingOtherWires().

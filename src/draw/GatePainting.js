@@ -75,7 +75,7 @@ GatePainting.paintOutline = args => {
     let r = args.rect.shiftedBy(0.5, 0.5);
     r = r.withW(r.w - 1).withH(r.h - 1);
     args.painter.trace(trace => GatePainting.traceRoundRect(trace.ctx, r)).thenStroke(
-        args.isHighlighted ? '#e07b28' : Config.GATE_OUTLINE_COLOR,
+        args.isHighlighted ? Config.GATE_HIGHLIGHT_OUTLINE_COLOR : Config.GATE_OUTLINE_COLOR,
         args.isHighlighted ? 1.6 : 1.2);
 };
 
@@ -89,7 +89,7 @@ GatePainting.paintBackground =
         if (args.isInToolbox && !args.isHighlighted) {
             // Soft drop shadow under toolbox gates.
             ctx.save();
-            ctx.shadowColor = 'rgba(20, 24, 31, 0.10)';
+            ctx.shadowColor = Config.TOOLBOX_GATE_SHADOW_COLOR;
             ctx.shadowBlur = 4;
             ctx.shadowOffsetY = 1;
             args.painter.trace(trace => GatePainting.traceRoundRect(trace.ctx, args.rect)).thenFill(backColor);

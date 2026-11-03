@@ -26,11 +26,22 @@ class Painter {
      * @param {!HTMLCanvasElement} canvas
      * @param {!RestartableRng=} rng
      */
-    constructor(canvas, rng = new RestartableRng()) {
+    /**
+     * @param {!HTMLCanvasElement} canvas
+     * @param {!RestartableRng=} rng
+     * @param {!number=} pixelRatio Canvas pixels per drawing unit. Above 1 the canvas holds a sharper (high-DPI or
+     *     zoomed) bitmap while drawing code keeps working in CSS pixels.
+     */
+    constructor(canvas, rng = new RestartableRng(), pixelRatio = 1) {
         /** @type {!HTMLCanvasElement} */
         this.canvas = canvas;
         /** @type {!CanvasRenderingContext2D} */
         this.ctx = canvas.getContext("2d");
+        /** @type {!number} */
+        this.pixelRatio = pixelRatio;
+        if (pixelRatio !== 1) {
+            this.ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+        }
         /**
          * @type {!Array.<!function()>}
          * @private
@@ -104,7 +115,21 @@ class Painter {
      * @returns {!Rect}
      */
     paintableArea() {
-        return new Rect(0, 0, this.canvas.width, this.canvas.height);
+        return new Rect(0, 0, this.width, this.height);
+    }
+
+    /**
+     * @returns {!number} The canvas width in drawing units (CSS pixels).
+     */
+    get width() {
+        return this.canvas.width / this.pixelRatio;
+    }
+
+    /**
+     * @returns {!number} The canvas height in drawing units (CSS pixels).
+     */
+    get height() {
+        return this.canvas.height / this.pixelRatio;
     }
 
     /**
@@ -112,7 +137,7 @@ class Painter {
      */
     clear(color = Config.DEFAULT_FILL_COLOR) {
         this.ctx.fillStyle = color;
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
     /**

@@ -277,8 +277,8 @@ const qndCxLink = {
         ["zpar","zpar","zpar","QNDread"],
         [1,"xpar",1,1,"QNDread"],
         ["Z",1,1,1,"•"],
-        [1,1,"Z",1,"•"],
         [1,1,"X","•"],
+        [1,1,"Z",1,"•"],
         [1,"reset0"]
     ],
     "init":[0,0,"+"]

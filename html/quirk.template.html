@@ -24,6 +24,10 @@
             #menu-div a, #export-div a { color: #2a5bd7; }
             #menu-div a { text-decoration: none; } #menu-div a:hover { text-decoration: underline; }
             textarea, input[type=text] { font: 12px ui-monospace, Menlo, monospace; border: 1px solid #dddcd6; border-radius: 8px; }
+            #qnd-exp-edit { position: absolute; z-index: 50; background: #fff; border: 1px solid #d9d7cf; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.15); padding: 8px 10px; font: 13px Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 4px; max-width: 260px; }
+            #qnd-exp-edit label { font: 600 13px Inter, system-ui, sans-serif; display: flex; align-items: center; gap: 6px; }
+            #qnd-exp-edit input { font: 15px ui-monospace, monospace; width: 90px; padding: 3px 6px; border: 1px solid #b36b00; border-radius: 5px; outline: none; }
+            #qnd-exp-edit small { color: #6b6f76; font-size: 11px; line-height: 1.35; } #qnd-exp-edit button.qx { align-self: flex-start; font: 12px Inter, system-ui, sans-serif; padding: 3px 8px; border: 1px solid #d9d7cf; border-radius: 6px; background: #f6f5f1; cursor: pointer; }
         </style>
     </head>
     <body style="margin: 0">
@@ -50,11 +54,12 @@
                 &nbsp;
                 <label style="font-size:13px; display:inline-flex; align-items:center; gap:6px;" title="Draw QND parity checks as one M_{Z⊗k} box like the papers (shortcut: P). Double-click a check to expand or collapse just that one."><input id="qnd-compact" type="checkbox"> paper-style checks <kbd style="font: 11px ui-monospace, monospace; border: 1px solid #c9c8c2; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: #6b6f76;">P</kbd></label>
                 <label style="font-size:13px; display:inline-flex; align-items:center; gap:6px;" title="Coloured Z/X tabs marking the measured wires of a paper-style check (shortcut: I)"><input id="qnd-tabs" type="checkbox"> input tabs <kbd style="font: 11px ui-monospace, monospace; border: 1px solid #c9c8c2; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: #6b6f76;">I</kbd></label>
+                <label style="font-size:13px; display:inline-flex; align-items:center; gap:6px;" title="Show readout outcomes as a classical record c₀, c₁, … (like Stim's rec) and corrections as X^{cₖ} instead of controlled gates from bit-wire qubits (shortcut: C)"><input id="qnd-record" type="checkbox"> classical record <kbd style="font: 11px ui-monospace, monospace; border: 1px solid #c9c8c2; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: #6b6f76;">C</kbd></label>
                 &nbsp;
                 &nbsp;
                 &nbsp;
                 &nbsp;
-                <span style="color:#BBB">Version 2.3</span>
+                <span style="color:#BBB">Version 2.3 + QND</span>
             </div>
 
             <!-- Circuit drawing area -->

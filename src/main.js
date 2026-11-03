@@ -40,6 +40,8 @@ import {initForge, obsForgeIsShowing} from "./ui/forge.js"
 import {initMenu, obsMenuIsShowing, closeMenu} from "./ui/menu.js"
 import {initUndoRedo} from "./ui/undo.js"
 import {initClear} from "./ui/clear.js"
+import {initQnd, editClassicalExponent, editReadoutName} from "./ui/qnd.js"
+import {QndView, qndCheckInColumn} from "./ui/qndView.js"
 import {initUrlCircuitSync} from "./ui/url.js"
 import {initTitleSync} from "./ui/title.js"
 import {simulate} from "./ui/sim.js"
@@ -47,8 +49,6 @@ import {GatePainting} from "./draw/GatePainting.js"
 import {GATE_CIRCUIT_DRAWER} from "./ui/DisplayedCircuit.js"
 import {GateColumn} from "./circuit/GateColumn.js";
 import {Point} from "./math/Point.js";
-import {initQnd} from "./ui/qnd.js"
-import {QndView, qndCheckInColumn} from "./ui/qndView.js"
 initSerializer(
     GatePainting.LABEL_DRAWER,
     GatePainting.MATRIX_DRAWER,
@@ -131,6 +131,10 @@ displayed.observable().
 
 /** @type {!CooldownThrottle} */
 let redrawThrottle;
+/** @type {undefined|!Point} */
+let dragStartPos = undefined;
+/** @type {undefined|!DisplayedCircuit} */
+let lastShownCircuit = undefined;
 const scrollBlocker = new TouchScrollBlocker(canvasDiv);
 const redrawNow = () => {
     if (!haveLoaded) {
@@ -145,26 +149,57 @@ const redrawNow = () => {
     let stats = simulate(shown.displayedCircuit.circuitDefinition);
     mostRecentStats.set(stats);
 
+    // Freeze the classical-record layout while a drag is in progress, and animate when it starts or stops.
+    let hand = displayed.get().hand;
+    if (hand.isHoldingSomething() && hand.pos !== undefined) {
+        if (dragStartPos === undefined) {
+            dragStartPos = hand.pos;
+            QndView.frozen = lastShownCircuit === undefined || lastShownCircuit._squish() === undefined
+                ? undefined
+                : {n: lastShownCircuit.circuitDefinition.columns.length, info: lastShownCircuit._squish()};
+        }
+    } else {
+        dragStartPos = undefined;
+        QndView.frozen = undefined;
+    }
+    let dragging = dragStartPos !== undefined && hand.pos.distanceTo(dragStartPos) > 6;
+    if (dragging !== QndView.dragging) {
+        if (QndView.record && lastShownCircuit !== undefined) {
+            let n = lastShownCircuit.circuitDefinition.columns.length;
+            let fromX = [];
+            for (let i = 0; i < n + 40; i++) {
+                fromX.push(lastShownCircuit.opRect(i).x);
+            }
+            QndView.anim = {fromX, img: undefined, n, t0: performance.now(), dur: 220};
+        }
+        QndView.dragging = dragging;
+    }
+    lastShownCircuit = shown.displayedCircuit;
+
+    // Draw at the screen's pixel density (high-DPI screens, browser zoom) so the circuit isn't blurry.
     let size = desiredCanvasSizeFor(shown);
-    canvas.width = size.w;
-    canvas.height = size.h;
-    let painter = new Painter(canvas, semiStableRng.cur.restarted());
+    let pixelRatio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(size.w * pixelRatio);
+    canvas.height = Math.round(size.h * pixelRatio);
+    canvas.style.width = size.w + 'px';
+    canvas.style.height = size.h + 'px';
+    let painter = new Painter(canvas, semiStableRng.cur.restarted(), pixelRatio);
     shown.updateArea(painter.paintableArea());
     shown.paint(painter, stats);
     painter.paintDeferred();
 
-    // Cross-fade from the snapshot taken before the QND view changed.
+    // Cross-fade from the snapshot taken before the record view changed.
     let anim = QndView.anim;
     if (anim !== undefined) {
         let progress = (performance.now() - anim.t0) / anim.dur;
         if (progress >= 1) {
             QndView.anim = undefined;
         } else {
-            let alpha = Math.max(0, 1 - progress / 0.6);
+            let alpha = anim.img === undefined ? 0 : Math.max(0, 1 - progress / 0.6);
             if (alpha > 0) {
                 painter.ctx.save();
                 painter.ctx.globalAlpha = alpha * alpha;
-                painter.ctx.drawImage(anim.img, 0, 0);
+                painter.ctx.drawImage(anim.img, 0, 0, anim.img.width / pixelRatio, anim.img.height / pixelRatio);
                 painter.ctx.restore();
             }
             window.requestAnimationFrame(() => redrawThrottle.trigger());
@@ -184,35 +219,21 @@ const redrawNow = () => {
 redrawThrottle = new CooldownThrottle(redrawNow, Config.REDRAW_COOLDOWN_MILLIS, 0.1, true);
 QndView.requestRedraw = () => redrawThrottle.trigger();
 QndView.onBeforeViewChange = () => {
-    let reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) {
-        QndView.anim = undefined;
-        return;
+    let circ = displayed.get().displayedCircuit;
+    let n = circ.circuitDefinition.columns.length;
+    let fromX = [];
+    for (let i = 0; i < n + 40; i++) {
+        fromX.push(circ.opRect(i).x);
     }
     let img = document.createElement('canvas');
     img.width = canvas.width;
     img.height = canvas.height;
     img.getContext('2d').drawImage(canvas, 0, 0);
-    QndView.anim = {img, t0: performance.now(), dur: 320};
+    let reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    QndView.anim = reduceMotion ? undefined : {fromX, img, n, t0: performance.now(), dur: 320};
 };
 window.addEventListener('resize', () => redrawThrottle.trigger(), false);
 displayed.observable().subscribe(() => redrawThrottle.trigger());
-
-// Double-click a QND parity check to expand / collapse just that column.
-canvasDiv.addEventListener('dblclick', ev => {
-    let circ = displayed.get().displayedCircuit;
-    let pt = eventPosRelativeTo(ev, canvas);
-    let col = circ.indexOfDisplayedColumnAt(pt.x);
-    if (col === undefined || col >= circ.circuitDefinition.columns.length ||
-            pt.y < circ.top || pt.y > circ.top + circ.desiredHeight()) {
-        return;
-    }
-    if (qndCheckInColumn(circ.circuitDefinition.columns[col]) === undefined) {
-        return;
-    }
-    QndView.toggle(col);
-    ev.preventDefault();
-});
 
 /** @type {undefined|!string} */
 let clickDownGateButtonKey = undefined;
@@ -299,6 +320,67 @@ watchDrags(canvasDiv,
         ev.preventDefault();
     });
 
+// Double-click a classical correction to pick its record entry, or a QND check to expand/collapse it.
+canvasDiv.addEventListener('dblclick', ev => {
+    let circ = displayed.get().displayedCircuit;
+    let pt = eventPosRelativeTo(ev, canvas);
+    let col = circ.indexOfDisplayedColumnAt(pt.x, pt.y);
+    if (col === undefined || pt.y < circ.top || pt.y > circ.top + circ.desiredHeight()) {
+        return;
+    }
+    let row = circ.wireIndexAt(pt.y);
+    let def = circ.circuitDefinition;
+    let gate = row >= 0 && row < def.numWires ? def.columns[col].gates[row] : undefined;
+    if (gate !== undefined) {
+        let current = undefined;
+        if (/^[XYZ]\^c$/.test(gate.serializedId)) {
+            current = gate.param === 'last' || gate.param === undefined ? '' : String(gate.param);
+        } else if (QndView.record && /^[XYZ]$/.test(gate.serializedId)) {
+            let cond = circ._record().cond.get(col);
+            if (cond !== undefined && cond.targets.indexOf(row) >= 0) {
+                current = cond.keys.join('+');
+            }
+        }
+        if (current !== undefined) {
+            let r = circ.gateRect(row, col);
+            let box = canvas.getBoundingClientRect();
+            editClassicalExponent(revision, {
+                left: box.left + window.scrollX + r.x,
+                top: box.top + window.scrollY + r.y,
+                width: r.w,
+                height: r.h
+            }, col, row, current);
+            ev.preventDefault();
+            return;
+        }
+    }
+
+    let check = qndCheckInColumn(circ.circuitDefinition.columns[col]);
+    if (check === undefined) {
+        return;
+    }
+    if (QndView.record && QndView.isCompact(col)) {
+        let rec = circ._record();
+        let key = col + ':' + check.readRow;
+        let topRow = Math.min(...check.rows);
+        let bottomRow = Math.max(...check.rows);
+        let topRect = circ.gateRect(topRow, col);
+        let bottomRect = circ.gateRect(bottomRow, col);
+        let box = canvas.getBoundingClientRect();
+        let name = String(rec.readName.get(key));
+        editReadoutName(revision, {
+            left: box.left + window.scrollX + topRect.x,
+            top: box.top + window.scrollY + topRect.y,
+            width: topRect.w,
+            height: bottomRect.bottom() - topRect.y
+        }, col, check.readRow, name, () => QndView.toggle(col));
+        ev.preventDefault();
+        return;
+    }
+    QndView.toggle(col);
+    ev.preventDefault();
+});
+
 // Middle-click to delete a gate.
 canvasDiv.addEventListener('mousedown', ev => {
     if (!isMiddleClicking(ev)) {
@@ -349,7 +431,7 @@ initForge(revision, obsIsAnyOverlayShowing.observable());
 initUndoRedo(revision, obsIsAnyOverlayShowing.observable());
 initClear(revision, obsIsAnyOverlayShowing.observable());
 initMenu(revision, obsIsAnyOverlayShowing.observable());
-initQnd();
+initQnd(revision);
 initTitleSync(revision);
 obsForgeIsShowing.
     zipLatest(obsExportsIsShowing, (e1, e2) => e1 || e2).

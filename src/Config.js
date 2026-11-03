@@ -104,5 +104,22 @@ Config.GATE_CORNER_RADIUS = 6;
 Config.GATE_OUTLINE_COLOR = '#2b2f36';
 Config.MUTED_TEXT_COLOR = '#6b6f76';
 Config.PARITY_LABEL_COLOR = '#c2410c';
+Config.GATE_HIGHLIGHT_OUTLINE_COLOR = '#e07b28';
+Config.TOOLBOX_GATE_SHADOW_COLOR = 'rgba(20, 24, 31, 0.10)';
+// Serif stack for paper-style math labels (M_{Z⊗k}, c₀, X^{cₖ}); QndMath supplies the ⊗ ⊕ glyphs.
+Config.MATH_FONT_FAMILY = "QndMath, 'STIX Two Math', 'Cambria Math', 'Times New Roman', Georgia, serif";
+
+// QND gates and checks.
+Config.QND_ACCENT_COLOR = '#0f8a6c';      // QND readout gate, Z input tabs, outcome arrows.
+Config.QND_FILL_COLOR = '#e3f4ee';        // QND readout gate background.
+Config.QND_X_TAB_COLOR = '#4f46c8';       // X input tabs.
+Config.QND_TAB_TEXT_COLOR = '#ffffff';
+Config.QND_CONSUMED_WIRE_COLOR = '#9a9ca1';  // Dashed wire after a single-qubit readout consumed it.
+
+// Classical record view.
+Config.RECORD_COLOR = '#b36b00';          // Record entries c_k picked by hand.
+Config.RECORD_BAD_COLOR = '#c0392b';      // Record references that aren't available at that point.
+Config.CLASSICAL_WIRE_COLOR = '#a9a7a0';
+Config.CLASSICAL_WIRE_LABEL_COLOR = '#8a8984';
 
 export {Config}

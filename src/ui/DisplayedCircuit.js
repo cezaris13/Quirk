@@ -18,6 +18,8 @@ import {CachablePainting} from "../draw/CachablePainting.js"
 import {CircuitDefinition} from "../circuit/CircuitDefinition.js"
 import {CircuitStats} from "../circuit/CircuitStats.js"
 import {Config} from "../Config.js"
+import {QndView, qndCheckInColumn, computeRecord, parseRecArg} from "./qndView.js"
+import {measureRecExpr, fillRecExpr, paintClassicalGate} from "./qndRecPaint.js"
 import {DetailedError} from "../base/DetailedError.js"
 import {equate} from "../base/Equate.js"
 import {Format} from "../base/Format.js"
@@ -32,7 +34,6 @@ import {Rect} from "../math/Rect.js"
 import {Util} from "../base/Util.js"
 import {seq, Seq} from "../base/Seq.js"
 import {paintBlochSphereDisplay} from "../gates/BlochSphereDisplay.js"
-import {QndView, qndCheckInColumn} from "./qndView.js"
 
 /** @type {!number} */
 let CIRCUIT_OP_HORIZONTAL_SPACING = 10;
@@ -136,7 +137,9 @@ class DisplayedCircuit {
      */
     desiredWidth(forTooltip=false) {
         if (forTooltip) {
-            return this.opRect(this.circuitDefinition.columns.length - 1).right() + CIRCUIT_OP_LEFT_SPACING;
+            let squish = this._squish();
+            let lastSlot = squish === undefined ? this.circuitDefinition.columns.length - 1 : squish.count - 1;
+            return this.opRect(this._colOfSlot(lastSlot)).right() + CIRCUIT_OP_LEFT_SPACING;
         }
         return this._rectForSuperpositionDisplay().right() + 101;
     }
@@ -186,17 +189,25 @@ class DisplayedCircuit {
 
     /**
      * @param {!number} x
+     * @param {undefined|!number} y Used to pick between columns that share a squished display slot.
      * @returns {undefined|!int}
      */
-    indexOfDisplayedColumnAt(x) {
+    indexOfDisplayedColumnAt(x, y=undefined) {
         let col = this.toColumnSpaceCoordinate(x);
+        let squish = this._squish();
+        let compressedSlot = this._compressedColumnIndex === undefined ?
+            undefined :
+            this._slotOf(this._compressedColumnIndex);
         let i;
-        if (this._compressedColumnIndex === undefined || col < this._compressedColumnIndex - 0.75) {
+        if (compressedSlot === undefined || col < compressedSlot - 0.75) {
             i = Math.round(col);
-        } else if (col < this._compressedColumnIndex - 0.25) {
-            i = this._compressedColumnIndex;
+        } else if (col < compressedSlot - 0.25) {
+            i = compressedSlot;
         } else {
             i = Math.round(col) - 1;
+        }
+        if (squish !== undefined) {
+            i = this._colOfSlot(i, y === undefined ? undefined : this.indexOfDisplayedRowAt(y));
         }
 
         if (i < 0 || i >= this.circuitDefinition.columns.length) {
@@ -204,6 +215,253 @@ class DisplayedCircuit {
         }
 
         return i;
+    }
+
+    /**
+     * In classical record view, packs columns that touch disjoint wires into shared display slots.
+     * @returns {undefined|!{slot: !Array.<!int>, cols: !Array.<!Array.<!int>>, count: !int}}
+     * @private
+     */
+    _squish() {
+        if (!QndView.record || QndView.dragging) {
+            return undefined;
+        }
+        let def = this.circuitDefinition;
+        if (QndView.frozen !== undefined && QndView.frozen.n === def.columns.length) {
+            return QndView.frozen.info;
+        }
+        let key = QndView.layoutKey();
+        if (this._squishCache !== undefined && this._squishCache.def === def && this._squishCache.key === key) {
+            return this._squishCache.info;
+        }
+
+        let rec = this._record();
+        let slot = [];
+        let cols = [];
+        let infos = [];
+        // Columns can't move before a slot holding a column they don't fit beside (wide gates, empty columns).
+        let barrier = 0;
+        def.columns.forEach((column, c) => {
+            let spans = [];
+            let writes = new Set();
+            let reads = new Set();
+            let narrow = true;
+            let any = false;
+            let cond = rec.cond.get(c);
+            column.gates.forEach((gate, row) => {
+                if (gate === undefined) {
+                    return;
+                }
+                any = true;
+                if (gate.width !== 1) {
+                    narrow = false;
+                }
+                if (gate.isControl()) {
+                    reads.add(row);
+                } else {
+                    for (let k = 0; k < gate.height; k++) {
+                        writes.add(row + k);
+                    }
+                }
+            });
+            let hidden = this._hiddenReadout(c);
+
+            // In the record view the bit wires are drawn as record entries c_k, so a hidden readout writes its
+            // entry and a correction reads its entries. Track those instead of the shared bit wire, otherwise
+            // every readout and correction would conflict through it.
+            let recWrites = new Set();
+            let recReads = new Set();
+            if (hidden !== undefined) {
+                writes.delete(hidden.readRow);
+                recWrites.add(rec.readName.get(c + ':' + hidden.readRow));
+            }
+            if (cond !== undefined) {
+                for (let q of cond.ctlRows) {
+                    reads.delete(q);
+                }
+                for (let k of cond.keys) {
+                    recReads.add(k);
+                }
+            }
+
+            if (cond !== undefined) {
+                spans = cond.targets.map(r => [r, r]);
+            } else if (hidden !== undefined) {
+                spans = [[Math.min(...hidden.rows), Math.max(...hidden.rows)]];
+            } else if (any) {
+                let rows = [];
+                column.gates.forEach((gate, row) => {
+                    if (gate !== undefined) {
+                        rows.push(row, row + gate.height - 1);
+                    }
+                });
+                spans = [[Math.min(...rows), Math.max(...rows)]];
+            }
+
+            let info = {spans, W: writes, R: reads, RW: recWrites, RR: recReads, ok: narrow && any};
+            let conflicts = other =>
+                other.spans.some(a => info.spans.some(b => a[0] <= b[1] && b[0] <= a[1])) ||
+                [...info.W].some(r => other.W.has(r) || other.R.has(r)) ||
+                [...info.R].some(r => other.W.has(r)) ||
+                [...info.RR].some(k => other.RW.has(k));
+
+            // Place the column in the earliest slot after everything it depends on (as soon as possible),
+            // so e.g. a correction sits right after the readout it uses even if later columns came between.
+            let s;
+            if (info.ok) {
+                s = barrier;
+                infos.forEach((other, a) => {
+                    if (conflicts(other)) {
+                        s = Math.max(s, slot[a] + 1);
+                    }
+                });
+            } else {
+                s = cols.length;
+                barrier = s + 1;
+            }
+            if (s === cols.length) {
+                cols.push([]);
+            }
+            infos.push(info);
+            cols[s].push(c);
+            slot.push(s);
+        });
+
+        // Wires each column covers, so per-wire drawing can follow the display order of the columns on it.
+        let spans = infos.map(info => info.spans);
+        let info = {slot, cols, count: cols.length, spans};
+        this._squishCache = {def, key, info};
+        return info;
+    }
+
+    /**
+     * @returns {undefined|!function(col: !int, row: !int) : !boolean} Whether a wire has been consumed by a
+     *     single-qubit compact QND readout (and not yet reused) at a column.
+     * @private
+     */
+    _qndMeasuredWires() {
+        let def = this.circuitDefinition;
+        let key = QndView.layoutKey();
+        if (this._goneCache !== undefined && this._goneCache.def === def && this._goneCache.key === key) {
+            return this._goneCache.fn;
+        }
+
+        let n = def.columns.length;
+        let gone = new Array(def.numWires).fill(false);
+        let history = [];
+        for (let row = 0; row < def.numWires; row++) {
+            history.push([false]);
+        }
+        let anyGone = false;
+        for (let c = 0; c < n; c++) {
+            let column = def.columns[c];
+            let check = QndView.isCompact(c) ? qndCheckInColumn(column) : undefined;
+            for (let row = 0; row < def.numWires; row++) {
+                if (column.gates[row] !== undefined) {
+                    gone[row] = false;
+                }
+            }
+            if (check !== undefined && check.rows.length === 1) {
+                anyGone = gone[check.rows[0]] = true;
+            }
+            for (let row = 0; row < def.numWires; row++) {
+                history[row].push(gone[row]);
+            }
+        }
+
+        let fn = anyGone ? (col, row) => row < history.length && history[row][Math.min(col, n)] : undefined;
+        this._goneCache = {def, key, fn};
+        return fn;
+    }
+
+    /**
+     * @param {!int} row
+     * @returns {!function(slot: !int) : !int} For each display slot, the column whose "state before" applies to
+     *     the wire there: the first column on the wire at or after the slot. Packed record-view slots aren't in
+     *     column order, but the columns on any one wire are.
+     * @private
+     */
+    _wireStateColumns(row) {
+        let squish = this._squish();
+        let n = this.circuitDefinition.columns.length;
+        if (squish === undefined) {
+            return slot => slot;
+        }
+        let onWire = [];
+        for (let c = 0; c < n; c++) {
+            if (squish.spans[c].some(([a, b]) => a <= row && row <= b)) {
+                onWire.push(c);
+            }
+        }
+        return slot => {
+            if (slot >= squish.count) {
+                return n + (slot - squish.count);
+            }
+            let next = onWire.find(c => squish.slot[c] >= slot);
+            return next === undefined ? n : next;
+        };
+    }
+
+    /**
+     * @param {!int} col
+     * @returns {!int} The display slot the column is drawn in.
+     * @private
+     */
+    _slotOf(col) {
+        let squish = this._squish();
+        if (squish === undefined) {
+            return col;
+        }
+        let n = this.circuitDefinition.columns.length;
+        return col < 0 ? col : col < n ? squish.slot[col] : squish.count + (col - n);
+    }
+
+    /**
+     * @param {!int} slot
+     * @param {undefined|!int} row
+     * @returns {!int} The column shown in the display slot, preferring the one that has something at the row.
+     * @private
+     */
+    _colOfSlot(slot, row=undefined) {
+        let squish = this._squish();
+        if (squish === undefined || slot < 0) {
+            return slot;
+        }
+        if (slot >= squish.count) {
+            return this.circuitDefinition.columns.length + (slot - squish.count);
+        }
+        let members = squish.cols[slot];
+        if (row !== undefined) {
+            for (let c of members) {
+                let found = this.circuitDefinition.findGateCoveringSlot(c, row);
+                if (found !== undefined && found.col === c) {
+                    return c;
+                }
+            }
+            for (let c of members) {
+                let check = QndView.isCompact(c) ? qndCheckInColumn(this.circuitDefinition.columns[c]) : undefined;
+                if (check !== undefined && row >= Math.min(...check.rows) && row <= Math.max(...check.rows)) {
+                    return c;
+                }
+            }
+            for (let c of members) {
+                let gates = this.circuitDefinition.columns[c].gates;
+                if (gates[row] === undefined && !gates.some(g => g !== undefined && g.isControl())) {
+                    return c;
+                }
+            }
+        }
+        return members[0];
+    }
+
+    /**
+     * @param {!int} col
+     * @returns {!int} How many columns share the column's display slot.
+     * @private
+     */
+    _slotSize(col) {
+        let squish = this._squish();
+        return squish === undefined || col >= squish.slot.length ? 1 : squish.cols[squish.slot[col]].length;
     }
 
     /**
@@ -215,7 +473,20 @@ class DisplayedCircuit {
             return undefined;
         }
 
-        return Math.max(-0.5, Math.round(this.toColumnSpaceCoordinate(p.x) * 2) / 2);
+        let halfSlot = Math.max(-0.5, Math.round(this.toColumnSpaceCoordinate(p.x) * 2) / 2);
+        let squish = this._squish();
+        if (squish === undefined || halfSlot < 0) {
+            return halfSlot;
+        }
+        if (halfSlot % 1 === 0) {
+            return this._colOfSlot(halfSlot, this.indexOfDisplayedRowAt(p.y));
+        }
+        let slot = Math.floor(halfSlot);
+        if (slot >= squish.count) {
+            return this._colOfSlot(slot) + 0.5;
+        }
+        let members = squish.cols[slot];
+        return members[members.length - 1] + 0.5;
     }
 
     /**
@@ -276,14 +547,24 @@ class DisplayedCircuit {
         let opWidth = Config.GATE_RADIUS * 2;
         let opSeparation = opWidth + CIRCUIT_OP_HORIZONTAL_SPACING;
         let tweak = 0;
-        if (this._compressedColumnIndex !== undefined && operationIndex === this._compressedColumnIndex) {
+        let compressedSlot = this._compressedColumnIndex === undefined ?
+            undefined :
+            this._slotOf(this._compressedColumnIndex);
+        let col = operationIndex;
+        operationIndex = this._slotOf(operationIndex);
+        if (compressedSlot !== undefined && operationIndex === compressedSlot) {
             tweak = opSeparation / 2;
         }
-        if (this._compressedColumnIndex !== undefined && operationIndex > this._compressedColumnIndex) {
+        if (compressedSlot !== undefined && operationIndex > compressedSlot) {
             tweak = opSeparation;
         }
 
         let dx = opSeparation * operationIndex - tweak + CIRCUIT_OP_LEFT_SPACING;
+        let anim = QndView.anim;
+        if (anim !== undefined && anim.n === this.circuitDefinition.columns.length && col >= 0 && col < anim.fromX.length) {
+            let t = QndView.animProgress();
+            dx = anim.fromX[col] + (dx - anim.fromX[col]) * t;
+        }
         return new Rect(dx, this.top, opWidth, this.desiredHeight());
     }
 
@@ -347,12 +628,14 @@ class DisplayedCircuit {
     paint(painter, hand, stats, forTooltip=false, showWires=true) {
         if (showWires) {
             this._drawWires(painter, !forTooltip, hand);
+            this._drawClassicalRows(painter);
         }
 
         for (let col = 0; col < this.circuitDefinition.columns.length; col++) {
             this._drawColumn(painter, this.circuitDefinition.columns[col], col, hand, stats);
         }
 
+        this._drawRecordLabels(painter);
         if (!forTooltip) {
             this._drawOutputDisplays(painter, stats, hand);
             this._drawHintLabels(painter, stats);
@@ -384,26 +667,41 @@ class DisplayedCircuit {
                 if (this._highlightedSlot === undefined && hand.pos !== undefined && rect.containsPoint(hand.pos)) {
                     painter.fillRect(rect, Config.HIGHLIGHTED_GATE_FILL_COLOR);
                 }
-                painter.print(`|${v}⟩`, 20, y, 'right', 'middle', Config.FOREGROUND_COLOR, '14px ' + Config.DEFAULT_FONT_FAMILY, 20, Config.WIRE_SPACING);
+                painter.print(
+                    `|${v}⟩`,
+                    20,
+                    y,
+                    'right',
+                    'middle',
+                    Config.FOREGROUND_COLOR,
+                    '14px ' + Config.DEFAULT_FONT_FAMILY,
+                    20,
+                    Config.WIRE_SPACING);
             }
         }
 
-        // Wires (doubled-up for measured sections).
+        // Wires (doubled-up for measured sections, dashed after a compact QND readout consumed them).
+        let squish = this._squish();
         painter.ctx.save();
         for (let row = 0; row < drawnWireCount; row++) {
             if (row === this._extraWireStartIndex) {
                 painter.ctx.globalAlpha *= 0.5;
             }
+            let isGone = this._qndMeasuredWires();
+            let goneSegments = [];
+            let stateColAt = this._wireStateColumns(row);
             painter.trace(trace => {
                 let wireRect = this.wireRect(row);
                 let y = Math.round(wireRect.center().y - 0.5) + 0.5;
                 let lastX = showLabels ? 25 : 5;
+                let slotCount = squish === undefined ? this.circuitDefinition.columns.length : squish.count;
                 //noinspection ForLoopThatDoesntUseLoopVariableJS
-                for (let col = 0;
-                        showLabels ? lastX < painter.canvas.width : col <= this.circuitDefinition.columns.length;
-                        col++) {
-                    let x = this.opRect(col).center().x;
-                    if (this.circuitDefinition.locIsMeasured(new Point(col, row))) {
+                for (let slot = 0; showLabels ? lastX < painter.width : slot <= slotCount; slot++) {
+                    let x = this.opRect(this._colOfSlot(slot)).center().x;
+                    let col = stateColAt(slot);
+                    if (isGone !== undefined && isGone(col, row)) {
+                        goneSegments.push([lastX, x, y]);
+                    } else if (this.circuitDefinition.locIsMeasured(new Point(col, row))) {
                         // Measured wire.
                         trace.line(lastX, y-1, x, y-1);
                         trace.line(lastX, y+1, x, y+1);
@@ -414,6 +712,23 @@ class DisplayedCircuit {
                     lastX = x;
                 }
             }).thenStroke(Config.FOREGROUND_COLOR);
+
+            if (goneSegments.length) {
+                let ctx = painter.ctx;
+                ctx.save();
+                ctx.strokeStyle = Config.QND_CONSUMED_WIRE_COLOR;
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 3]);
+                ctx.beginPath();
+                for (let [x1, x2, y] of goneSegments) {
+                    ctx.moveTo(x1, y - 1.5);
+                    ctx.lineTo(x2, y - 1.5);
+                    ctx.moveTo(x1, y + 1.5);
+                    ctx.lineTo(x2, y + 1.5);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
         }
         painter.ctx.restore();
         if (this._extraWireStartIndex !== undefined && this.circuitDefinition.numWires === Config.MAX_WIRE_COUNT) {
@@ -526,8 +841,46 @@ class DisplayedCircuit {
             let gate = gateColumn.gates[row];
             let gateRect = this.gateRect(row, col, gate.width, gate.height);
 
+            // Classical record view: controls become part of a conditional gate, readouts become record labels.
+            let rec = this._record();
+            if (rec !== undefined) {
+                let cond = rec.cond.get(col);
+                if (cond !== undefined && cond.ctlRows.indexOf(row) >= 0) {
+                    continue;
+                }
+                let hidden = this._hiddenReadout(col);
+                if (hidden !== undefined && row === hidden.readRow) {
+                    continue;
+                }
+                if (cond !== undefined && cond.targets.indexOf(row) >= 0) {
+                    this._drawConditionalGate(
+                        painter,
+                        gateRect,
+                        gate,
+                        cond.keys,
+                        this._highlightStatusAt(col, row, hand.hoverPoints()).isHighlighted);
+                    painter.noteTouchBlocker({rect: gateRect, cursor: 'pointer'});
+                    continue;
+                }
+            }
+
             let {isHighlighted, isResizeShowing, isResizeHighlighted} =
                 this._highlightStatusAt(col, row, hand.hoverPoints());
+
+            if (/^[XYZ]\^c$/.test(gate.serializedId)) {
+                let live = this._recordAlways().live;
+                let keys = parseRecArg(gate.param);
+                let available = col < live.length ? live[col] : new Set();
+                let isSatisfied = keys === undefined ? available.size > 0 : keys.every(k => available.has(k));
+                paintClassicalGate(
+                    painter.ctx,
+                    gateRect,
+                    gate.serializedId[0],
+                    keys,
+                    {highlighted: isHighlighted, bad: !isSatisfied});
+                painter.noteTouchBlocker({rect: gateRect, cursor: 'pointer'});
+                continue;
+            }
 
             let drawer = gate.customDrawer || GatePainting.DEFAULT_DRAWER;
             painter.noteTouchBlocker({rect: gateRect, cursor: 'pointer'});
@@ -556,8 +909,142 @@ class DisplayedCircuit {
     }
 
     /**
-     * Draws a QND parity check paper-style: one M_{P⊗k} box over the measured qubits, with "↓ s" pointing at
-     * the readout when the box is tall enough.
+     * @param {!int} col
+     * @returns {undefined|!{rows: !Array.<!int>, paulis: !Array.<!string>, readRow: !int}} The compact QND check in
+     *     the column, when its readout wire is shown as a classical record bit instead of a qubit.
+     * @private
+     */
+    _hiddenReadout(col) {
+        let rec = this._record();
+        if (rec === undefined || col >= this.circuitDefinition.columns.length || !QndView.isCompact(col)) {
+            return undefined;
+        }
+        let check = qndCheckInColumn(this.circuitDefinition.columns[col]);
+        return check !== undefined && rec.bitRows.has(check.readRow) ? check : undefined;
+    }
+
+    /**
+     * Labels readouts with the name of the record bit they write (e.g. "→ c₀").
+     * @param {!Painter} painter
+     * @private
+     */
+    _drawRecordLabels(painter) {
+        let rec = this._record();
+        if (rec === undefined) {
+            return;
+        }
+        let ctx = painter.ctx;
+        for (let [key, name] of rec.readName) {
+            let [col, row] = key.split(':').map(Number);
+            if (col >= this.circuitDefinition.columns.length ||
+                    row >= this.circuitDefinition.numWires ||
+                    this._hiddenReadout(col) !== undefined) {
+                continue;
+            }
+            let r = this.gateRect(row, col);
+            ctx.save();
+            ctx.font = '16px ' + Config.MATH_FONT_FAMILY;
+            let arrowWidth = ctx.measureText('→').width;
+            let nameWidth = measureRecExpr(ctx, [name], 15);
+            ctx.fillStyle = Config.BACKGROUND_COLOR_CIRCUIT;
+            ctx.globalAlpha = 0.85;
+            ctx.fillRect(r.right() + 2, r.y, arrowWidth + nameWidth + 5, 17);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = Config.QND_ACCENT_COLOR;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillText('→', r.right() + 3, r.y + 12);
+            fillRecExpr(ctx, [name], r.right() + 4 + arrowWidth, r.y + 12, 15);
+            ctx.restore();
+        }
+    }
+
+    /**
+     * @param {!Painter} painter
+     * @param {!Rect} rect
+     * @param {!Gate} gate
+     * @param {!Array.<!int>} keys
+     * @param {!boolean=} isHighlighted
+     * @private
+     */
+    _drawConditionalGate(painter, rect, gate, keys, isHighlighted=false) {
+        paintClassicalGate(painter.ctx, rect, gate.serializedId, keys, {joiner: '·', highlighted: isHighlighted});
+    }
+
+    /**
+     * @returns {undefined|*} The classical record, when the classical record view is on.
+     * @private
+     */
+    _record() {
+        if (QndView.record) {
+            return this._recordAlways();
+        }
+        return undefined;
+    }
+
+    /**
+     * @returns {*} The classical record of the circuit (cached per circuit definition).
+     * @private
+     */
+    _recordAlways() {
+        let def = this.circuitDefinition;
+        if (DisplayedCircuit._recCache && DisplayedCircuit._recCache.def === def) {
+            return DisplayedCircuit._recCache.info;
+        }
+        let cols = def.columns.map(column => column.gates.map(g =>
+            g === undefined ? undefined :
+            g.serializedId === 'QNDread' && g.param ? {id: 'QNDread', arg: g.param} :
+            g.serializedId));
+        let initialValues = [];
+        for (let row = 0; row < def.numWires; row++) {
+            let v = def.customInitialValues.get(row);
+            initialValues.push(v === undefined ? 0 : v);
+        }
+        let info = computeRecord(cols, initialValues);
+        DisplayedCircuit._recCache = {def, info};
+        return info;
+    }
+
+    /**
+     * Draws record-bit wires as dashed classical wires labelled "c".
+     * @param {!Painter} painter
+     * @private
+     */
+    _drawClassicalRows(painter) {
+        let rec = this._record();
+        if (rec === undefined) {
+            return;
+        }
+        let ctx = painter.ctx;
+        for (let row of rec.bitRows) {
+            if (row >= this.circuitDefinition.numWires) {
+                continue;
+            }
+            let y = Math.round(this.wireRect(row).center().y - 0.5) + 0.5;
+            ctx.save();
+            ctx.fillStyle = Config.BACKGROUND_COLOR_CIRCUIT;
+            ctx.fillRect(0, y - 4, painter.width, 8);
+            ctx.strokeStyle = Config.CLASSICAL_WIRE_COLOR;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 3]);
+            ctx.beginPath();
+            ctx.moveTo(25, y - 1.5);
+            ctx.lineTo(painter.width, y - 1.5);
+            ctx.moveTo(25, y + 1.5);
+            ctx.lineTo(painter.width, y + 1.5);
+            ctx.stroke();
+            ctx.fillRect(0, y - 12, 24, 24);
+            ctx.fillStyle = Config.CLASSICAL_WIRE_LABEL_COLOR;
+            ctx.font = 'italic 13px ' + Config.MATH_FONT_FAMILY;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('c', 20, y);
+            ctx.restore();
+        }
+    }
+
+    /**
+     * Draws a compact QND parity check as a single paper-style M_{P⊗k} box over the gates of the column.
      * @param {!Painter} painter
      * @param {!GateColumn} gateColumn
      * @param {!int} col
@@ -577,8 +1064,14 @@ class DisplayedCircuit {
         let ctx = painter.ctx;
         ctx.save();
 
+        let radius = 4;
         ctx.beginPath();
-        GatePainting.traceRoundRect(ctx, box, 4);
+        ctx.moveTo(box.x + radius, box.y);
+        ctx.arcTo(box.right(), box.y, box.right(), box.bottom(), radius);
+        ctx.arcTo(box.right(), box.bottom(), box.x, box.bottom(), radius);
+        ctx.arcTo(box.x, box.bottom(), box.x, box.y, radius);
+        ctx.arcTo(box.x, box.y, box.right(), box.y, radius);
+        ctx.closePath();
         ctx.fillStyle = Config.GATE_FILL_COLOR;
         ctx.fill();
         ctx.lineWidth = 1.3;
@@ -594,9 +1087,9 @@ class DisplayedCircuit {
                     continue;
                 }
                 let tab = new Rect(box.x, y - 7, 11, 14);
-                ctx.fillStyle = pauliOfRow.get(row) === 'Z' ? '#0f8a6c' : '#4f46c8';
+                ctx.fillStyle = pauliOfRow.get(row) === 'Z' ? Config.QND_ACCENT_COLOR : Config.QND_X_TAB_COLOR;
                 ctx.fillRect(tab.x, tab.y, tab.w, tab.h);
-                ctx.fillStyle = '#ffffff';
+                ctx.fillStyle = Config.QND_TAB_TEXT_COLOR;
                 ctx.font = 'bold 9px ' + Config.DEFAULT_FONT_FAMILY;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
@@ -605,6 +1098,7 @@ class DisplayedCircuit {
             } else {
                 ctx.save();
                 ctx.setLineDash([3, 3]);
+                ctx.strokeStyle = Config.DEFAULT_STROKE_COLOR;
                 ctx.globalAlpha = 0.45;
                 ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -622,7 +1116,7 @@ class DisplayedCircuit {
             check.paulis.join('');
         let cx = box.center().x;
         let cy = box.center().y;
-        let serif = "QndMath, 'STIX Two Math', 'Cambria Math', 'Times New Roman', Georgia, serif";
+        let serif = Config.MATH_FONT_FAMILY;
         ctx.textBaseline = 'alphabetic';
         let mainFont = '15px ' + serif;
         ctx.font = mainFont;
@@ -631,7 +1125,15 @@ class DisplayedCircuit {
 
         // Keep the label inside the box (right of the input tabs): shrink the subscript, except that in tall
         // boxes long mixed products like XZXZXZ wrap onto several lines instead.
-        let left = box.x + (QndView.tabs ? 13 : 3);
+        // Tabs sit at the measured wires' centers; only make room for them when one is level with the label
+        // (always, for labels that may wrap onto several lines).
+        let labelTop = (isTall ? cy - 8 : cy + 4) - 10;
+        let labelBottom = (isTall ? cy - 8 : cy + 4) + 6;
+        let tabHitsLabel = QndView.tabs && (isTall && !isUniform || check.rows.some(row => {
+            let rowY = this.gateRect(row, col).center().y;
+            return rowY + 7 > labelTop && rowY - 7 < labelBottom;
+        }));
+        let left = box.x + (tabHitsLabel ? 13 : 3);
         let subWidthLimit = box.right() - 3 - left - mWidth;
         let subSize = 10;
         let measureSub = text => {
@@ -658,22 +1160,46 @@ class DisplayedCircuit {
         let subLineHeight = subSize + 1;
         let extraHeight = (subLines.length - 1) * subLineHeight;
         let x = left + (box.right() - 3 - left - mWidth - subWidth) / 2;
-        let y = (isTall ? cy - 8 : cy + 4) - extraHeight / 2;
+
+        let rec = this._record();
+        let name = rec !== undefined && rec.readName.has(col + ':' + check.readRow) ?
+            rec.readName.get(col + ':' + check.readRow) :
+            undefined;
+        let isInline = !isTall && name !== undefined && this._hiddenReadout(col) !== undefined;
+        let y = (isTall ? cy - 8 : isInline ? cy - 1 : cy + 4) - extraHeight / 2;
         ctx.fillStyle = Config.DEFAULT_TEXT_COLOR;
-        ctx.textAlign = 'left';
         ctx.font = mainFont;
+        ctx.textAlign = 'left';
         ctx.fillText('M', x, y);
         ctx.font = subSize + 'px ' + serif;
         subLines.forEach((line, i) => ctx.fillText(line, x + mWidth, y + 4 + i * subLineHeight, subWidthLimit));
         cy += extraHeight / 2;
 
-        // The outcome s goes to the readout wire.
-        if (isTall) {
-            ctx.textAlign = 'center';
+        // Where the outcome goes: "→ cₖ" inline for short boxes, "↓ s" (or the record bit) for tall ones.
+        let isExplicit = rec !== undefined && rec.explicit !== undefined && rec.explicit.has(col + ':' + check.readRow);
+        if (isInline) {
+            ctx.font = '12px ' + serif;
+            let arrowWidth = ctx.measureText('→').width + 1;
+            let ax = cx + 5 - (arrowWidth + measureRecExpr(ctx, [name], 12)) / 2;
+            ctx.textAlign = 'left';
+            ctx.fillStyle = Config.QND_ACCENT_COLOR;
+            ctx.fillText('→', ax, cy + 15);
+            ctx.fillStyle = isExplicit ? Config.RECORD_COLOR : Config.QND_ACCENT_COLOR;
+            fillRecExpr(ctx, [name], ax + arrowWidth, cy + 15, 12);
+        } else if (isTall) {
             ctx.font = '13px ' + serif;
+            ctx.textAlign = 'center';
             ctx.fillText('↓', cx + 5, cy + 9);
             ctx.font = 'italic 15px ' + serif;
-            ctx.fillText('s', cx + 5, cy + 25);
+            if (name !== undefined) {
+                let parts = [name];
+                if (isExplicit) {
+                    ctx.fillStyle = Config.RECORD_COLOR;
+                }
+                fillRecExpr(ctx, parts, cx + 5 - measureRecExpr(ctx, parts, 15) / 2, cy + 25, 15);
+            } else {
+                ctx.fillText('s', cx + 5, cy + 25);
+            }
         }
         ctx.restore();
     }
@@ -767,10 +1293,16 @@ class DisplayedCircuit {
      * @private
      */
     _drawColumnControlWires(painter, columnIndex) {
+        // Conditional gates and hidden readouts in the record view draw their own connections.
+        let rec = this._record();
+        if (rec !== undefined && (rec.cond.has(columnIndex) || this._hiddenReadout(columnIndex) !== undefined)) {
+            return;
+        }
+
         let x = Math.round(this.opRect(columnIndex).center().x - 0.5) + 0.5;
 
         // Dashed line indicates effects from non-unitary gates may affect, or appear to affect, other wires.
-        if (this.circuitDefinition.columns[columnIndex].hasGatesWithGlobalEffects()) {
+        if (this.circuitDefinition.columns[columnIndex].hasGatesWithGlobalEffects() && this._slotSize(columnIndex) === 1) {
             painter.ctx.save();
             painter.ctx.setLineDash([1, 4]);
             painter.strokeLine(
@@ -1084,7 +1616,7 @@ class DisplayedCircuit {
      * @returns {undefined|!{col: !int, row: !int, offset: !Point}}
      */
     findGateOverlappingPos(pos) {
-        let col = this.indexOfDisplayedColumnAt(pos.x);
+        let col = this.indexOfDisplayedColumnAt(pos.x, pos.y);
         let row = this.indexOfDisplayedRowAt(pos.y);
         if (col === undefined || row === undefined) {
             return undefined;
@@ -1203,8 +1735,9 @@ class DisplayedCircuit {
      * @returns {!{newCircuit: !DisplayedCircuit, newHand: !Hand}}
      */
     tryGrab(hand, duplicate=false, wholeColumn=false, ignoreResizeTabs=false, alt=false) {
-        // A paper-style QND check is grabbed as a unit.
-        if (!wholeColumn && this._isOnCompactQndCheck(hand)) {
+        // A compact QND check, or a record-view correction X^{c_k} together with its bit-wire controls, is
+        // grabbed as a unit.
+        if (!wholeColumn && (this._isOnCompactQndCheck(hand) || this._isOnRecordCorrection(hand))) {
             return this._tryGrabWholeColumn(hand, duplicate, alt) || {newCircuit: this, newHand: hand};
         }
 
@@ -1290,6 +1823,51 @@ class DisplayedCircuit {
 
     /**
      * @param {!Hand} hand
+     * @returns {!boolean}
+     * @private
+     */
+    _isOnCompactQndCheck(hand) {
+        if (hand.isBusy() || hand.pos === undefined) {
+            return false;
+        }
+        let col = this.indexOfDisplayedColumnAt(hand.pos.x, hand.pos.y);
+        if (col === undefined || !QndView.isCompact(col)) {
+            return false;
+        }
+        let check = qndCheckInColumn(this.circuitDefinition.columns[col]);
+        if (check === undefined) {
+            return false;
+        }
+        let row = this.wireIndexAt(hand.pos.y);
+        let firstRow = Math.min(...check.rows);
+        let lastRow = Math.max(...check.rows);
+        return (row >= firstRow && row <= lastRow) || row === check.readRow;
+    }
+
+    /**
+     * @param {!Hand} hand
+     * @returns {!boolean} Whether the hand is over a gate of a classically controlled correction shown in the
+     *     record view (whose controls sit on hidden bit wires, so it must move together with them).
+     * @private
+     */
+    _isOnRecordCorrection(hand) {
+        if (hand.isBusy() || hand.pos === undefined) {
+            return false;
+        }
+        let rec = this._record();
+        if (rec === undefined) {
+            return false;
+        }
+        let found = this.findGateOverlappingPos(hand.pos);
+        if (found === undefined) {
+            return false;
+        }
+        let cond = rec.cond.get(found.col);
+        return cond !== undefined && cond.targets.indexOf(found.row) >= 0;
+    }
+
+    /**
+     * @param {!Hand} hand
      * @param {!boolean} duplicate
      * @param {!boolean} alt
      * @returns {undefined|!{newCircuit: !DisplayedCircuit, newHand: !Hand}}
@@ -1360,27 +1938,6 @@ class DisplayedCircuit {
 
     /**
      * @param {!Hand} hand
-     * @returns {!boolean} Whether the hand is over a paper-style QND check (its box or its readout).
-     * @private
-     */
-    _isOnCompactQndCheck(hand) {
-        if (hand.isBusy() || hand.pos === undefined) {
-            return false;
-        }
-        let col = this.indexOfDisplayedColumnAt(hand.pos.x);
-        if (col === undefined || col >= this.circuitDefinition.columns.length || !QndView.isCompact(col)) {
-            return false;
-        }
-        let check = qndCheckInColumn(this.circuitDefinition.columns[col]);
-        if (check === undefined) {
-            return false;
-        }
-        let row = this.wireIndexAt(hand.pos.y);
-        return (row >= Math.min(...check.rows) && row <= Math.max(...check.rows)) || row === check.readRow;
-    }
-
-    /**
-     * @param {!Hand} hand
      * @param {!boolean} duplicate
      * @param {!boolean} alt Whether or not to replace grabbed gates with their alternates.
      * @returns {undefined|!{newCircuit: !DisplayedCircuit, newHand: !Hand}}
@@ -1391,8 +1948,8 @@ class DisplayedCircuit {
             return undefined;
         }
 
-        let col = Math.round(this.toColumnSpaceCoordinate(hand.pos.x));
-        if (col < 0 || col >= this.circuitDefinition.columns.length || this.circuitDefinition.columns[col].isEmpty()) {
+        let col = this.indexOfDisplayedColumnAt(hand.pos.x, hand.pos.y);
+        if (col === undefined || this.circuitDefinition.columns[col].isEmpty()) {
             return undefined;
         }
 
@@ -1468,9 +2025,12 @@ class DisplayedCircuit {
      * @returns {!number} The number of columns used for drawing the circuit, before the output display.
      */
     clampedCircuitColCount() {
+        let n = this.circuitDefinition.columns.length;
+        let squish = this._squish();
+        let savedSlots = squish === undefined ? 0 : n - squish.count;
         return Math.max(
-            this.circuitDefinition.columns.length,
-            Config.MIN_COL_COUNT + (this._compressedColumnIndex !== undefined ? 1 : 0));
+            n,
+            Config.MIN_COL_COUNT + savedSlots + (this._compressedColumnIndex !== undefined ? 1 : 0));
     }
 
     /**
@@ -1793,7 +2353,7 @@ let _cachedRowLabelDrawer = new CachablePainting(
         //noinspection JSCheckFunctionSignatures
         _drawLabelsReasonablyFast(
             painter,
-            painter.canvas.height / rowCount,
+            painter.height / rowCount,
             rowCount,
             i => Util.bin(i, rowWires) + suffix,
             SUPERPOSITION_GRID_LABEL_SPAN);
@@ -1813,7 +2373,7 @@ let _cachedColLabelDrawer = new CachablePainting(
     (painter, numWire) => {
         let [colWires, rowWires] = [Math.floor(numWire/2), Math.ceil(numWire/2)];
         let colCount = 1 << colWires;
-        let dw = painter.canvas.width / colCount;
+        let dw = painter.width / colCount;
 
         painter.ctx.translate(colCount*dw, 0);
         painter.ctx.rotate(Math.PI/2);

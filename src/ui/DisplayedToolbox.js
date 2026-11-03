@@ -203,7 +203,7 @@ class DisplayedToolbox {
      * @param {!Hand} hand
      */
     paint(painter, stats, hand) {
-        painter.fillRect(this.curArea(painter.canvas.width), Config.BACKGROUND_COLOR_TOOLBOX);
+        painter.fillRect(this.curArea(painter.width), Config.BACKGROUND_COLOR_TOOLBOX);
         this._standardApperance.paint(0, this.top, painter);
         this._paintDeviations(painter, stats, hand);
     }
