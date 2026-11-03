@@ -5,8 +5,12 @@ export CHROME_BIN
 OUT := out/quirk.html
 BROWSER ?= $(shell command -v chromium || command -v google-chrome-stable || command -v xdg-open)
 
+DEPLOY_DIR  ?= /var/www/quirk
+DEPLOY_PORT ?= 3002
+NGINX_SITE  := /etc/nginx/sites-available/quirk
+
 .DEFAULT_GOAL := help
-.PHONY: help install build debug run open test test-chrome test-page perf clean
+.PHONY: help install build debug run open test test-chrome test-page perf clean deploy deploy-setup
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -43,3 +47,15 @@ perf: node_modules
 
 clean:
 	rm -rf out
+
+deploy: build
+	sudo mkdir -p $(DEPLOY_DIR)
+	sudo cp $(OUT) $(DEPLOY_DIR)/index.html
+	@echo "Deployed $(OUT) -> $(DEPLOY_DIR)/index.html (served on 127.0.0.1:$(DEPLOY_PORT))"
+
+deploy-setup:
+	sudo mkdir -p $(DEPLOY_DIR)
+	printf 'server {\n    listen 127.0.0.1:$(DEPLOY_PORT);\n    root $(DEPLOY_DIR);\n    index index.html;\n}\n' | sudo tee $(NGINX_SITE) >/dev/null
+	sudo ln -sf $(NGINX_SITE) /etc/nginx/sites-enabled/quirk
+	sudo nginx -t
+	sudo systemctl reload nginx
