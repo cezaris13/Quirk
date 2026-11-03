@@ -17,6 +17,8 @@ import {GateShaders} from "../circuit/GateShaders.js"
 import {Matrix} from "../math/Matrix.js"
 import {Config} from "../Config.js"
 import {GatePainting} from "../draw/GatePainting.js"
+import {parseRecArg} from "../ui/qndView.js"
+import {paintClassicalGate} from "../ui/qndRecPaint.js"
 import {sampleMeasure, detectorStatTexture, withClearedControls, drawClick} from "./Detector.js"
 
 const RESET_TO_ZERO = Matrix.square(1, 1, 0, 0);
@@ -45,7 +47,37 @@ function drawReset(args, label) {
     args.painter.printLine('reset', args.rect.skipTop(args.rect.h - 11), 0.5, Config.MUTED_TEXT_COLOR, 9, undefined, 0);
 }
 
+/**
+ * @param {!GateDrawParams} args
+ * @param {!string} axis
+ */
+function drawClassicalGate(args, axis) {
+    paintClassicalGate(args.painter.ctx, args.rect, axis, parseRecArg(args.gate.param), {
+        highlighted: args.isHighlighted,
+        bad: args.positionInCircuit !== undefined,
+        shadow: args.isInToolbox
+    });
+}
+
 let QndGates = {};
+
+/**
+ * @param {!string} axis
+ * @returns {!Gate}
+ */
+function makeClassicalGate(axis) {
+    return new GateBuilder().
+        setSerializedIdAndSymbol(axis + '^c').
+        setTitle('Classically controlled ' + axis + '  (' + axis + '^{c_k})').
+        setBlurb('Applies ' + axis + ' when the classical record entry c_k is 1 (Pauli-frame correction, as in the papers).\n' +
+            'Drop it after a QND readout: it is wired to the bit wire holding the latest entry.\n' +
+            'Double-click it to pick another entry, e.g. 6 for c₆ or 6+2 for c₆⊕c₂.\n' +
+            'A red box means that entry is not available at this point (not yet measured or overwritten).').
+        setDrawer(args => drawClassicalGate(args, axis)).
+        setKnownEffectToMatrix(Matrix.identity(2)).
+        gate.withParam('last');
+}
+
 
 QndGates.ParityReadout = new GateBuilder().
     setSerializedIdAndSymbol('QNDread').
@@ -101,10 +133,17 @@ QndGates.ResetZero = new GateBuilder().
     setActualEffectToUpdateFunc(measureThenApply(RESET_TO_ZERO)).
     gate;
 
+QndGates.ClassicalX = makeClassicalGate('X');
+QndGates.ClassicalY = makeClassicalGate('Y');
+QndGates.ClassicalZ = makeClassicalGate('Z');
+
 QndGates.all = [
     QndGates.ParityReadout,
     QndGates.ResetPlus,
     QndGates.ResetZero,
+    QndGates.ClassicalX,
+    QndGates.ClassicalY,
+    QndGates.ClassicalZ,
 ];
 
 export {QndGates}

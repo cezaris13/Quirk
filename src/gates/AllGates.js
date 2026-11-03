@@ -272,6 +272,14 @@ Gates.TopToolboxGroups = [
         ]
     },
     {
+        hint: "Classical (c_k)",
+        gates: [
+            QndGates.ClassicalX, undefined,
+            QndGates.ClassicalY, undefined,
+            QndGates.ClassicalZ, undefined,
+        ]
+    },
+    {
         hint: "Parity",
         gates: [
             Controls.ZParityControl, undefined,

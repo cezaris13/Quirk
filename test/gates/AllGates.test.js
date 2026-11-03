@@ -207,7 +207,11 @@ suite.test("knownDoNothingGateFamilies", () => {
         'Density',
         'Bloch',
         // Spacer gate.
-        '…'
+        '…',
+        // QND fork: classically controlled Paulis are resolved into controlled gates before simulation.
+        'X^c',
+        'Y^c',
+        'Z^c'
     ]));
 });
 
