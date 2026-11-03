@@ -271,6 +271,19 @@ const distillLink = {
     ]
 };
 
+/** CX from a QND Z⊗3 parity check, arXiv:2605.24262 Fig. 2(a). */
+const qndCxLink = {
+    "cols":[
+        ["zpar","zpar","zpar","QNDread"],
+        [1,"xpar",1,1,"QNDread"],
+        ["Z",1,1,1,"•"],
+        [1,1,"Z",1,"•"],
+        [1,1,"X","•"],
+        [1,"reset0"]
+    ],
+    "init":[0,0,"+"]
+};
+
 /**
  * @param {!Revision} revision
  * @param {!Observable.<!boolean>} obsIsAnyOverlayShowing
@@ -310,6 +323,7 @@ function initMenu(revision, obsIsAnyOverlayShowing) {
     const qftAnchor = /** @type {!HTMLAnchorElement} */ document.getElementById('example-qft');
     const shorAnchor = /** @type {!HTMLAnchorElement} */ document.getElementById('example-anchor-shor');
     const distillAnchor = /** @type {!HTMLAnchorElement} */ document.getElementById('example-anchor-distill');
+    const qndCxAnchor = /** @type {!HTMLAnchorElement} */ document.getElementById('example-qnd-cx');
 
     for (let [a, t] of [[groverAnchor, groverLink],
                         [shorAnchor, shorLink],
@@ -320,7 +334,8 @@ function initMenu(revision, obsIsAnyOverlayShowing) {
                         [symmetryBreakAnchor, symmetryBreakingLink],
                         [chshTestAnchor, chshTestLink],
                         [qftAnchor, qftLink],
-                        [distillAnchor, distillLink]]) {
+                        [distillAnchor, distillLink],
+                        [qndCxAnchor, qndCxLink]]) {
         let text = JSON.stringify(t);
         a.href = "#circuit=" + text;
         a.onclick = ev => {
