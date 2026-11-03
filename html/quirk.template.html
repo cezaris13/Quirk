@@ -51,7 +51,6 @@
             html[data-theme=dark] #qnd-bar { background: #232427 !important; border-color: #393b40 !important; }
             html[data-theme=dark] #qnd-bar > b { color: #dfe1e5 !important; } html[data-theme=dark] #qnd-bias-out b[style*="#c2410c"] { color: #ff9a6b !important; } html[data-theme=dark] #qnd-bias-out b[style*="#0f8a6c"] { color: #3fd0a4 !important; }
             html[data-theme=dark] #qnd-info { color: #8a8d93 !important; }
-            html[data-theme=dark] #qnd-bar > span:nth-of-type(1) { background: #2b2d30 !important; border-color: #43454a !important; }
             html[data-theme=dark] [style*="background-color:white"], html[data-theme=dark] [style*="background-color: white"],
             html[data-theme=dark] [style*="background-color:#f6f5f1"] { background-color: #232427 !important; color: #dfe1e5; }
             html[data-theme=dark] [style*="border:1px solid black"], html[data-theme=dark] [style*="border: 1px solid black"] { border-color: #43454a !important; }
@@ -63,6 +62,7 @@
             html[data-theme=dark] #qnd-exp-edit { background: #2b2d30; border-color: #43454a; color: #dfe1e5; } html[data-theme=dark] #qnd-exp-edit input { background: #1e1f22; color: #dfe1e5; } html[data-theme=dark] #qnd-exp-edit small { color: #8a8d93; }
             html[data-theme=dark] #qnd-exp-edit button.qx { background: #35373b; border-color: #43454a; color: #dfe1e5; }
             html.theme-switching * { transition: none !important; }
+            #qnd-bar { margin: 8px 12px !important; border: 1px solid #e6e5e0 !important; background: #fafaf8 !important; border-radius: 10px !important; padding: 8px 12px !important; font-family: inherit !important; }
         </style>
     </head>
     <body style="margin: 0">
@@ -88,14 +88,18 @@
                 <button id="theme-button" title="Toggle light / dark mode" style="min-width: 50px; min-height: 30px;">☾ Dark</button>
                 &nbsp;
                 &nbsp;
-                <label class="qnd-opt" title="Draw QND parity checks as one M_{Z⊗k} box like the papers (shortcut: P). Double-click a check to expand or collapse just that one."><input id="qnd-compact" type="checkbox"> paper-style checks <kbd>P</kbd></label>
-                <label class="qnd-opt" title="Coloured Z/X tabs marking the measured wires of a paper-style check (shortcut: I)"><input id="qnd-tabs" type="checkbox"> input tabs <kbd>I</kbd></label>
-                <label class="qnd-opt" title="Show readout outcomes as a classical record c₀, c₁, … (like Stim's rec) and corrections as X^{cₖ} instead of controlled gates from bit-wire qubits (shortcut: C)"><input id="qnd-record" type="checkbox"> classical record <kbd>C</kbd></label>
-                &nbsp;
-                &nbsp;
                 &nbsp;
                 &nbsp;
                 <span style="color:#BBB">Version 2.3 + QND</span>
+            </div>
+            <div id="qnd-bar" style="margin: 0 5px 5px; padding: 6px 10px; border: 1px solid #cfe9df; background: #f3fbf8; border-radius: 6px; font: 13px sans-serif; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                <b style="color:#22252b; font-weight: 600;">QND · biased-noise papers</b>
+                <select id="qnd-example" style="min-height: 28px; max-width: 360px;"></select>
+                <label class="qnd-opt" title="Switch the loaded paper circuit between its gate version and its QND version (shortcut: Q)"><input id="qnd-view" type="checkbox"> QND view <kbd>Q</kbd></label>
+                <label class="qnd-opt" title="Draw QND parity checks as one M_{Z⊗k} box like the papers (shortcut: P). Double-click a check to expand or collapse just that one."><input id="qnd-compact" type="checkbox"> paper-style checks <kbd>P</kbd></label>
+                <label class="qnd-opt" title="Coloured Z/X tabs marking the measured wires of a paper-style check (shortcut: I)"><input id="qnd-tabs" type="checkbox"> input tabs <kbd>I</kbd></label>
+                <label class="qnd-opt" title="Show readout outcomes as a classical record c₀, c₁, … (like Stim's rec) and corrections as X^{cₖ} instead of controlled gates from bit-wire qubits (shortcut: C)"><input id="qnd-record" type="checkbox"> classical record <kbd>C</kbd></label>
+                <span id="qnd-info" style="color:#6b6f76; flex-basis: 100%; font-size: 12px;"></span>
             </div>
 
             <!-- Circuit drawing area -->

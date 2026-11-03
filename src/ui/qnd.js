@@ -13,6 +13,8 @@
  */
 
 import {Config} from "../Config.js"
+import {QND_EXAMPLES} from "./qndExamples.js"
+import {closeMenu} from "./menu.js"
 import {QndView, computeRecord, parseRecArg, resolveClassical, COND_RE} from "./qndView.js"
 
 function initTheme() {
@@ -53,6 +55,27 @@ function initTheme() {
 }
 
 /**
+ * Shows the text in the element, turning each arXiv id (e.g. "arXiv:2605.24262") into a link to the paper.
+ * @param {!HTMLElement} element
+ * @param {!string} text
+ */
+function showWithArxivLinks(element, text) {
+    element.textContent = '';
+    for (let part of text.split(/(arXiv:\d{4}\.\d{4,5})/)) {
+        if (!/^arXiv:/.test(part)) {
+            element.appendChild(document.createTextNode(part));
+            continue;
+        }
+        let link = document.createElement('a');
+        link.href = 'https://arxiv.org/abs/' + part.slice('arXiv:'.length);
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = part;
+        element.appendChild(link);
+    }
+}
+
+/**
  * @param {!Revision} revision
  */
 function initQnd(revision) {
@@ -76,6 +99,9 @@ function initQnd(revision) {
         document.fonts.load('15px QndMath', '⊗⊕').then(() => QndView.requestRedraw(), () => {});
     }
 
+    let select = document.getElementById('qnd-example');
+    let viewBox = document.getElementById('qnd-view');
+    let info = document.getElementById('qnd-info');
     let compactBox = document.getElementById('qnd-compact');
     if (compactBox) {
         compactBox.checked = QndView.compact;
@@ -143,6 +169,104 @@ function initQnd(revision) {
         }
     });
 
+    if (!select) {
+        return;
+    }
+
+    const NONE = -1;
+    let current = NONE;
+    let view = 'qnd';
+    let loadedCommit = undefined;
+    let exampleAt = index => QND_EXAMPLES[index];
+    let placeholder = document.createElement('option');
+    placeholder.value = '-1';
+    placeholder.textContent = 'Load a circuit from the papers…';
+    select.appendChild(placeholder);
+    QND_EXAMPLES.forEach((ex, i) => {
+        let opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = ex.title;
+        select.appendChild(opt);
+    });
+
+    let refresh = () => {
+        viewBox.checked = view === 'qnd';
+        viewBox.disabled = true;
+        if (current === NONE) {
+            info.textContent = 'Pick a paper circuit, then switch views. ' +
+                'New gates are in the toolbox group "QND (biased noise)": ' +
+                'put Z-/X-parity controls on the measured qubits and a QND readout gate on a spare wire in the same column.';
+            return;
+        }
+        let ex = exampleAt(current);
+        viewBox.disabled = !ex.gate || !ex.qnd;
+        let wires = ex.labels[view].map((label, i) => i + ':' + label).join('  ');
+        let edited = loadedCommit !== undefined && revision.peekActiveCommit() !== loadedCommit ? '  (edited)' : '';
+        showWithArxivLinks(info, ex.ref + edited + '. Wires: ' + wires + '. ' + (view === 'qnd'
+            ? 'Readout outcomes are sampled: watch them flicker while the corrected output stays the same.'
+            : 'Ideal Pauli measurements with relocation swaps, as on the left-hand side of Fig. 2.'));
+    };
+
+    let load = () => {
+        if (current === NONE) {
+            refresh();
+            return;
+        }
+        let ex = exampleAt(current);
+        if (!ex[view]) {
+            view = ex.qnd ? 'qnd' : 'gate';
+        }
+        let text = JSON.stringify(ex[view]);
+        revision.commit(text);
+        loadedCommit = revision.peekActiveCommit();
+        refresh();
+    };
+
+    select.addEventListener('change', () => {
+        current = parseInt(select.value, 10);
+        load();
+    });
+    viewBox.addEventListener('change', () => {
+        view = viewBox.checked ? 'qnd' : 'gate';
+        load();
+    });
+    // Q: switch the loaded paper circuit between its gate and QND versions.
+    document.addEventListener('keydown', e => {
+        let t = e.target;
+        let typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+        if (typing || e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== 'q' || viewBox.disabled) {
+            return;
+        }
+        viewBox.checked = !viewBox.checked;
+        viewBox.dispatchEvent(new Event('change'));
+        e.preventDefault();
+    });
+    revision.latestActiveCommit().subscribe(refresh);
+    refresh();
+
+    // Links in the welcome menu.
+    let menuLinks = document.getElementById('qnd-menu-links');
+    if (menuLinks) {
+        QND_EXAMPLES.forEach((ex, i) => {
+            let a = document.createElement('a');
+            a.textContent = ex.title;
+            a.href = '#circuit=' + JSON.stringify(ex.qnd);
+            a.onclick = ev => {
+                // Let modified clicks open the link normally.
+                if (ev.shiftKey || ev.ctrlKey || ev.altKey || ev.which !== 1) {
+                    return undefined;
+                }
+                select.value = String(i);
+                current = i;
+                view = 'qnd';
+                load();
+                closeMenu();
+                return false;
+            };
+            menuLinks.appendChild(a);
+            menuLinks.appendChild(document.createElement('br'));
+        });
+    }
 }
 
 /**
