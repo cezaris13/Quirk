@@ -174,20 +174,29 @@ function initQnd(revision) {
     }
 
     const NONE = -1;
+    const FROM_LAB = -2;
     let current = NONE;
     let view = 'qnd';
     let loadedCommit = undefined;
-    let exampleAt = index => QND_EXAMPLES[index];
+    let labExample = undefined;
+    let exampleAt = index => index === FROM_LAB ? labExample : QND_EXAMPLES[index];
     let placeholder = document.createElement('option');
     placeholder.value = '-1';
     placeholder.textContent = 'Load a circuit from the papers…';
     select.appendChild(placeholder);
+    // Exact figures from the papers first, then the adapted / extended circuits.
+    let paperGroup = document.createElement('optgroup');
+    paperGroup.label = 'From the papers (exact figures)';
+    let advancedGroup = document.createElement('optgroup');
+    advancedGroup.label = 'Adapted & advanced';
     QND_EXAMPLES.forEach((ex, i) => {
         let opt = document.createElement('option');
         opt.value = String(i);
         opt.textContent = ex.title;
-        select.appendChild(opt);
+        (ex.fromPaper ? paperGroup : advancedGroup).appendChild(opt);
     });
+    select.appendChild(paperGroup);
+    select.appendChild(advancedGroup);
 
     let refresh = () => {
         viewBox.checked = view === 'qnd';
@@ -244,28 +253,61 @@ function initQnd(revision) {
     revision.latestActiveCommit().subscribe(refresh);
     refresh();
 
+    // Messages from an embedding page (e.g. the QND·QEC lab).
+    window.addEventListener('message', e => {
+        let msg = e.data;
+        if (msg && msg.type === 'qnd-load') {
+            labExample = msg;
+            let opt = select.querySelector('option[value="-2"]');
+            if (!opt) {
+                opt = document.createElement('option');
+                opt.value = '-2';
+                select.insertBefore(opt, select.children[1]);
+            }
+            opt.textContent = 'From the lab: ' + msg.title;
+            select.value = '-2';
+            current = FROM_LAB;
+            view = msg.view || 'qnd';
+            closeMenu();
+            load();
+        }
+    });
+    if (window.parent !== window) {
+        closeMenu();
+        window.parent.postMessage({type: 'qnd-ready'}, '*');
+    }
+
     // Links in the welcome menu.
     let menuLinks = document.getElementById('qnd-menu-links');
     if (menuLinks) {
-        QND_EXAMPLES.forEach((ex, i) => {
+        let addLink = (text, href, onClick) => {
             let a = document.createElement('a');
-            a.textContent = ex.title;
-            a.href = '#circuit=' + JSON.stringify(ex.qnd);
+            a.textContent = text;
+            a.href = href;
             a.onclick = ev => {
                 // Let modified clicks open the link normally.
                 if (ev.shiftKey || ev.ctrlKey || ev.altKey || ev.which !== 1) {
                     return undefined;
                 }
-                select.value = String(i);
-                current = i;
-                view = 'qnd';
+                onClick();
                 load();
                 closeMenu();
                 return false;
             };
             menuLinks.appendChild(a);
             menuLinks.appendChild(document.createElement('br'));
+        };
+        let addExample = (ex, i) => addLink(ex.title, '#circuit=' + JSON.stringify(ex.qnd), () => {
+            select.value = String(i);
+            current = i;
+            view = 'qnd';
         });
+        QND_EXAMPLES.forEach((ex, i) => ex.fromPaper && addExample(ex, i));
+        let advancedLabel = document.createElement('div');
+        advancedLabel.className = 'qnd-menu-sub';
+        advancedLabel.textContent = 'Adapted & advanced';
+        menuLinks.appendChild(advancedLabel);
+        QND_EXAMPLES.forEach((ex, i) => ex.fromPaper || addExample(ex, i));
     }
 }
 
