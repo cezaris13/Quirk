@@ -216,7 +216,25 @@ function computeRecord(cols, init) {
         });
         live.push(new Set(lastRead.values()));
     });
-    return {bitRows, readName, cond, count: readName.size, explicit: names.explicit, live};
+
+    // Adjacent corrections applying the same Paulis, each on one record bit, multiply out: X^a·X^b = X^(a⊕b).
+    // They're shown as one gate: the first column's cond gets all the keys (parity), the others go in mergedInto.
+    let mergedInto = new Map();
+    let paulis = c => cond.get(c).targets.map(q => idOf(cols[c][q])).join(',');
+    for (let c = 1; c < cols.length; c++) {
+        let head = mergedInto.has(c - 1) ? mergedInto.get(c - 1) : c - 1;
+        let a = cond.get(head);
+        let b = cond.get(c);
+        if (a !== undefined && b !== undefined && b.keys.length === 1 && (a.parity || a.keys.length === 1) &&
+                a.keys.indexOf(b.keys[0]) < 0 &&
+                String(a.targets) === String(b.targets) &&
+                /^[XYZ](,[XYZ])*$/.test(paulis(c)) && paulis(c) === paulis(head)) {
+            cond.set(head, {keys: a.keys.concat(b.keys), ctlRows: a.ctlRows.concat(b.ctlRows), targets: a.targets,
+                parity: true, merged: (a.merged || []).concat([c])});
+            mergedInto.set(c, head);
+        }
+    }
+    return {bitRows, readName, cond, mergedInto, count: readName.size, explicit: names.explicit, live};
 }
 
 /**
@@ -257,11 +275,22 @@ const condArg = g => typeof g === 'string' ? undefined : g.arg;
  * @returns {undefined|!Array.<!int>}
  */
 function parseRecArg(arg) {
-    if (arg === undefined || arg === null) {
+    if (arg === undefined || arg === null || recOp(arg) === undefined) {
         return undefined;
     }
     let m = String(arg).replace(/[₀-₉]/g, ch => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(ch))).match(/\d+/g);
     return m ? m.map(Number) : undefined;
+}
+
+/**
+ * @param {*} arg A record expression like "6", "6+2" (c₆ xor c₂) or "6*2" (c₆ and c₂).
+ * @returns {undefined|!string} 'xor' or 'and' (also for a single entry), undefined if both are mixed.
+ */
+function recOp(arg) {
+    let text = String(arg);
+    let xor = /[+^⊕]/.test(text);
+    let and = /[*&·]/.test(text);
+    return xor && and ? undefined : and ? 'and' : 'xor';
 }
 
 /**
@@ -311,9 +340,10 @@ function resolveClassical(circuitJson) {
                 base[q] = g;
                 continue;
             }
-            let key = ks.join(',');
+            let and = recOp(condArg(g)) === 'and';
+            let key = ks.join(',') + (and ? '&' : '^');
             if (!groups.has(key)) {
-                groups.set(key, {bits: sources.map(e => e[0]), targets: []});
+                groups.set(key, {bits: sources.map(e => e[0]), and, targets: []});
             }
             groups.get(key).targets.push([q, idOf(g)[0]]);
         }
@@ -321,10 +351,11 @@ function resolveClassical(circuitJson) {
         if (conds.length === 0 || base.some(g => g !== 1 && g !== undefined && g !== null)) {
             out.push(base);
         }
-        for (let {bits, targets} of groups.values()) {
-            for (let b of bits) {
+        for (let {bits, and, targets} of groups.values()) {
+            // AND: one column controlled by all the bit wires. XOR: one column per bit (the corrections are Paulis).
+            for (let ctl of and ? [bits] : bits.map(b => [b])) {
                 let newCol = [];
-                for (let [q, g] of [[b, '•'], ...targets]) {
+                for (let [q, g] of ctl.map(b => [b, '•']).concat(targets)) {
                     while (newCol.length <= q) {
                         newCol.push(1);
                     }
@@ -337,4 +368,4 @@ function resolveClassical(circuitJson) {
     return Object.assign({}, circuitJson, {cols: out});
 }
 
-export {QndView, qndCheckInColumn, computeRecord, parseRecArg, resolveClassical, COND_RE}
+export {QndView, qndCheckInColumn, computeRecord, parseRecArg, recOp, resolveClassical, COND_RE}

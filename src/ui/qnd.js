@@ -15,7 +15,7 @@
 import {Config} from "../Config.js"
 import {QND_EXAMPLES} from "./qndExamples.js"
 import {closeMenu} from "./menu.js"
-import {QndView, computeRecord, parseRecArg, resolveClassical, COND_RE} from "./qndView.js"
+import {QndView, computeRecord, parseRecArg, recOp, resolveClassical, COND_RE} from "./qndView.js"
 
 function initTheme() {
     let button = document.getElementById('theme-button');
@@ -381,7 +381,8 @@ function editClassicalExponent(revision, rect, col, row, current) {
         rect,
         'record entry',
         current,
-        '<b>6</b> → c₆ &nbsp;·&nbsp; <b>6+2</b> → c₆ xor c₂<br>Enter applies, Esc cancels.',
+        '<b>6</b> → c₆ &nbsp;·&nbsp; <b>6+2</b> → c₆ xor c₂ &nbsp;·&nbsp; <b>6*2</b> → c₆ and c₂<br>' +
+            'Enter applies, Esc cancels.',
         text => applyClassicalArg(revision, col, row, text));
 }
 
@@ -398,6 +399,7 @@ function applyClassicalArg(revision, col, row, text) {
     if (entries === undefined) {
         return;
     }
+    let arg = entries.join(recOp(text) === 'and' ? '*' : '+');
     let circuit;
     try {
         circuit = JSON.parse(revision.peekActiveCommit());
@@ -413,7 +415,7 @@ function applyClassicalArg(revision, col, row, text) {
     }
     let gate = column[row];
     if (COND_RE.test(idOf(gate) || '')) {
-        column[row] = {id: idOf(gate), arg: entries.join('+')};
+        column[row] = {id: idOf(gate), arg};
     } else {
         if (typeof gate !== 'string' || !/^[XYZ]$/.test(gate)) {
             return;
@@ -424,7 +426,15 @@ function applyClassicalArg(revision, col, row, text) {
         if (!cond) {
             return;
         }
-        column[row] = {id: gate + '^c', arg: entries.join('+')};
+        column[row] = {id: gate + '^c', arg};
+
+        // Adjacent corrections shown merged into this one: the new gate replaces them too.
+        for (let m of (cond.merged || []).slice().reverse()) {
+            circuit.cols[m][row] = 1;
+            if (cond.targets.every(r => circuit.cols[m][r] === 1)) {
+                circuit.cols.splice(m, 1);
+            }
+        }
 
         // Drop the old bit-wire controls if nothing else in the column uses them.
         if (cond.targets.every(r => r === row || column[r] === 1 || column[r] === undefined)) {

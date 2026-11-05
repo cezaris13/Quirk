@@ -242,6 +242,14 @@ class DisplayedCircuit {
         // Columns can't move before a slot holding a column they don't fit beside (wide gates, empty columns).
         let barrier = 0;
         def.columns.forEach((column, c) => {
+            // Merged into an earlier correction's gate: shares its slot and takes no space of its own.
+            if (rec.mergedInto.has(c)) {
+                let head = rec.mergedInto.get(c);
+                infos.push(infos[head]);
+                cols[slot[head]].push(c);
+                slot.push(slot[head]);
+                return;
+            }
             let spans = [];
             let writes = new Set();
             let reads = new Set();
@@ -844,6 +852,9 @@ class DisplayedCircuit {
             // Classical record view: controls become part of a conditional gate, readouts become record labels.
             let rec = this._record();
             if (rec !== undefined) {
+                if (rec.mergedInto.has(col)) {
+                    continue;
+                }
                 let cond = rec.cond.get(col);
                 if (cond !== undefined && cond.ctlRows.indexOf(row) >= 0) {
                     continue;
@@ -858,6 +869,7 @@ class DisplayedCircuit {
                         gateRect,
                         gate,
                         cond.keys,
+                        cond.parity === true,
                         this._highlightStatusAt(col, row, hand.hoverPoints()).isHighlighted);
                     painter.noteTouchBlocker({rect: gateRect, cursor: 'pointer'});
                     continue;
@@ -964,11 +976,15 @@ class DisplayedCircuit {
      * @param {!Rect} rect
      * @param {!Gate} gate
      * @param {!Array.<!int>} keys
+     * @param {!boolean} parity Whether the gate applies on the XOR (⊕) of the entries rather than their AND (·).
      * @param {!boolean=} isHighlighted
      * @private
      */
-    _drawConditionalGate(painter, rect, gate, keys, isHighlighted=false) {
-        paintClassicalGate(painter.ctx, rect, gate.serializedId, keys, {joiner: '·', highlighted: isHighlighted});
+    _drawConditionalGate(painter, rect, gate, keys, parity, isHighlighted=false) {
+        paintClassicalGate(painter.ctx, rect, gate.serializedId, keys, {
+            joiner: parity ? '⊕' : '·',
+            highlighted: isHighlighted
+        });
     }
 
     /**

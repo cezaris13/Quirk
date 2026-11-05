@@ -17,7 +17,7 @@ import {GateShaders} from "../circuit/GateShaders.js"
 import {Matrix} from "../math/Matrix.js"
 import {Config} from "../Config.js"
 import {GatePainting} from "../draw/GatePainting.js"
-import {parseRecArg} from "../ui/qndView.js"
+import {parseRecArg, recOp} from "../ui/qndView.js"
 import {paintClassicalGate} from "../ui/qndRecPaint.js"
 import {sampleMeasure, detectorStatTexture, withClearedControls, drawClick} from "./Detector.js"
 
@@ -53,6 +53,7 @@ function drawReset(args, label) {
  */
 function drawClassicalGate(args, axis) {
     paintClassicalGate(args.painter.ctx, args.rect, axis, parseRecArg(args.gate.param), {
+        joiner: recOp(args.gate.param) === 'and' ? '·' : '⊕',
         highlighted: args.isHighlighted,
         bad: args.positionInCircuit !== undefined,
         shadow: args.isInToolbox

@@ -336,9 +336,10 @@ canvasDiv.addEventListener('dblclick', ev => {
         if (/^[XYZ]\^c$/.test(gate.serializedId)) {
             current = gate.param === 'last' || gate.param === undefined ? '' : String(gate.param);
         } else if (QndView.record && /^[XYZ]$/.test(gate.serializedId)) {
-            let cond = circ._record().cond.get(col);
+            let rec = circ._record();
+            let cond = rec.cond.get(rec.mergedInto.has(col) ? rec.mergedInto.get(col) : col);
             if (cond !== undefined && cond.targets.indexOf(row) >= 0) {
-                current = cond.keys.join('+');
+                current = cond.keys.join(cond.parity ? '+' : '*');  // Several bit-wire controls: an AND.
             }
         }
         if (current !== undefined) {
