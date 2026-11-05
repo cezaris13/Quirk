@@ -382,5 +382,61 @@ function resolveClassical(circuitJson) {
 // Displays don't change the state.
 const DISPLAY = /^(Bloch|Density|Chance|Amps|Sample|…)/;
 
+/**
+ * What a circuit uses, for comparing its gate and QND forms.
+ * @param {!{cols: (undefined|!Array), init: (undefined|!Array)}} circuitJson
+ * @returns {!{qubits: !int, bits: !int, readouts: !int, maxWeight: !int, twoQubit: !int, swaps: !int,
+ *     corrections: !int, resets: !int, depth: !int}} twoQubit: gates controlled by a qubit (CX, CZ, …), one per
+ *     target. corrections: gates conditioned on record bits, one per target. depth: non-empty columns.
+ */
+function circuitResources(circuitJson) {
+    let circuit = resolveClassical(circuitJson) || circuitJson;
+    let cols = circuit.cols || [];
+    let init = circuit.init || [];
+    let bits = recordBitRows(cols, init);
+    let used = new Set();
+    init.forEach((v, q) => {
+        if (v && v !== '0' && !bits.has(q)) {
+            used.add(q);
+        }
+    });
+    let r = {qubits: 0, bits: bits.size, readouts: 0, maxWeight: 0, twoQubit: 0, swaps: 0, corrections: 0, resets: 0,
+        depth: 0};
+    for (let col of cols) {
+        let cells = [];
+        col.forEach((g, q) => {
+            let id = idOf(g);
+            if (id !== 1 && id !== undefined && id !== null && !DISPLAY.test(id)) {
+                cells.push({q, id});
+            }
+        });
+        if (cells.length === 0) {
+            continue;
+        }
+        r.depth++;
+        let onQubits = cells.filter(e => !bits.has(e.q));
+        for (let e of onQubits) {
+            used.add(e.q);
+        }
+        let weight = onQubits.filter(e => /^[xyz]par$/.test(e.id)).length;
+        let reads = cells.filter(e => e.id === 'QNDread' || e.id === 'Measure').length;
+        r.readouts += reads;
+        if (reads > 0) {
+            r.maxWeight = Math.max(r.maxWeight, weight, 1);
+            continue;
+        }
+        let targets = onQubits.filter(e => !/par$/.test(e.id) && e.id !== '•' && e.id !== '◦');
+        r.resets += targets.filter(e => /^reset/.test(e.id)).length;
+        if (cells.some(e => bits.has(e.q))) {
+            r.corrections += targets.length;
+        } else if (onQubits.some(e => e.id === '•' || e.id === '◦')) {
+            r.twoQubit += targets.length;
+        }
+        r.swaps += targets.filter(e => e.id === 'Swap').length / 2;
+    }
+    r.qubits = used.size;
+    return r;
+}
+
 export {QndView, qndCheckInColumn, computeRecord, recordBitRows, RECORD_WIRE_GATES, parseRecArg, recOp, resolveClassical,
-    COND_RE, DISPLAY}
+    COND_RE, DISPLAY, circuitResources}

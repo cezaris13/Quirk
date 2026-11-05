@@ -13,7 +13,8 @@
  */
 
 import {Suite, assertThat} from "../TestUtil.js"
-import {computeRecord, resolveClassical} from "../../src/ui/qndView.js"
+import {computeRecord, resolveClassical, circuitResources} from "../../src/ui/qndView.js"
+import {QND_EXAMPLES} from "../../src/ui/qndExamples.js"
 
 let suite = new Suite("qndView");
 
@@ -47,4 +48,12 @@ suite.test("a Z-parity correction is one XOR gate; an adjacent one repeating an 
     let rec = computeRecord(withReads(['X', 1, 1, 1, 'zpar', 'zpar'], ['X', 1, 1, 1, '•']), [0, '+']);
     assertThat(rec.cond.get(2).keys).isEqualTo([0, 1]);
     assertThat(rec.mergedInto.size).isEqualTo(0);  // c0⊕c1 then c0 would repeat c0.
+});
+
+suite.test("resource counts: BP-CNOT gate form vs QND form", () => {
+    let ex = QND_EXAMPLES.find(e => e.id === 'cx-');
+    assertThat(circuitResources(ex.gate)).isEqualTo(
+        {qubits: 3, bits: 0, readouts: 0, maxWeight: 0, twoQubit: 1, swaps: 1, corrections: 0, resets: 0, depth: 2});
+    assertThat(circuitResources(ex.qnd)).isEqualTo(
+        {qubits: 3, bits: 2, readouts: 2, maxWeight: 3, twoQubit: 0, swaps: 0, corrections: 3, resets: 1, depth: 6});
 });

@@ -15,7 +15,7 @@
 import {Config} from "../Config.js"
 import {QND_EXAMPLES} from "./qndExamples.js"
 import {closeMenu} from "./menu.js"
-import {QndView, computeRecord, parseRecArg, recOp, resolveClassical, COND_RE} from "./qndView.js"
+import {QndView, computeRecord, parseRecArg, recOp, resolveClassical, COND_RE, circuitResources} from "./qndView.js"
 
 function initTheme() {
     let button = document.getElementById('theme-button');
@@ -73,6 +73,26 @@ function showWithArxivLinks(element, text) {
         link.textContent = part;
         element.appendChild(link);
     }
+}
+
+/**
+ * One line of resource counts, e.g. "5 qubits · 2 bits · 3 readouts (weight ≤ 3) · 3 corrections · depth 7".
+ * @param {!Object} circuitJson
+ * @returns {!string}
+ */
+function resourceLine(circuitJson) {
+    let r = circuitResources(circuitJson);
+    let n = (k, one, many = one + 's') => `${k} ${k === 1 ? one : many}`;
+    let parts = [
+        n(r.qubits, 'qubit'),
+        r.bits && n(r.bits, 'bit'),
+        r.readouts && n(r.readouts, 'readout') + (r.maxWeight > 1 ? ` (weight ≤ ${r.maxWeight})` : ''),
+        r.twoQubit && n(r.twoQubit, 'controlled gate'),
+        r.swaps && n(r.swaps, 'swap'),
+        r.corrections && n(r.corrections, 'correction'),
+        r.resets && n(r.resets, 'reset'),
+        `depth ${r.depth}`];
+    return parts.filter(p => p).join(' · ');
 }
 
 /**
@@ -198,7 +218,32 @@ function initQnd(revision) {
     select.appendChild(paperGroup);
     select.appendChild(advancedGroup);
 
+    let statsLine = document.getElementById('qnd-stats');
+    // Resources of the circuit on screen; for a loaded example, next to those of its other stored form.
+    let showStats = () => {
+        let shown;
+        try {
+            shown = JSON.parse(revision.peekActiveCommit());
+        } catch (_) {
+            statsLine.textContent = '';
+            return;
+        }
+        if (!(shown.cols || []).some(col => col.some(g => g !== 1 && g !== null))) {
+            statsLine.textContent = '';
+            return;
+        }
+        let hasReadout = (shown.cols || []).some(col => col.some(g => (g && g.id || g) === 'QNDread'));
+        let isQnd = current === NONE ? hasReadout : view === 'qnd';
+        let line = `${isQnd ? 'QND' : 'Gate'} form: ${resourceLine(shown)}`;
+        let other = current === NONE ? undefined : exampleAt(current)[isQnd ? 'gate' : 'qnd'];
+        if (other !== undefined) {
+            line += `   vs   ${isQnd ? 'gate' : 'QND'} form: ${resourceLine(other)}`;
+        }
+        statsLine.textContent = line;
+    };
+
     let refresh = () => {
+        showStats();
         viewBox.checked = view === 'qnd';
         viewBox.disabled = true;
         if (current === NONE) {
