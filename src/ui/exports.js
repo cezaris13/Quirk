@@ -20,6 +20,7 @@ import {Serializer} from "../circuit/Serializer.js"
 import {selectAndCopyToClipboard} from "../browser/Clipboard.js"
 import {fromJsonText_CircuitDefinition} from "../circuit/Serializer.js"
 import {saveFile} from "../browser/SaveFile.js"
+import {toStim} from "./qndStim.js"
 
 const exportsIsVisible = new ObservableValue(false);
 const obsExportsIsShowing = exportsIsVisible.observable().whenDifferent();
@@ -107,6 +108,38 @@ function initExports(revision, mostRecentStats, obsIsAnyOverlayShowing) {
                 jsonTextElement.innerText = jsonText;
             }
         });
+    })();
+
+    // Export Stim circuit.
+    (() => {
+        const stimTextElement = /** @type {HTMLPreElement} */ document.getElementById('export-stim-pre');
+        const copyButton = /** @type {HTMLButtonElement} */ document.getElementById('export-stim-copy-button');
+        const copyResultElement = /** @type {HTMLElement} */ document.getElementById('export-stim-copy-result');
+        setupButtonElementCopyToClipboard(copyButton, stimTextElement, copyResultElement);
+        const field = id => document.getElementById(id);
+        let latest = undefined;
+        const render = () => {
+            if (latest === undefined || !exportsIsVisible.get()) {
+                return;
+            }
+            try {
+                stimTextElement.innerText = toStim(JSON.parse(latest), {
+                    detectors: field('export-stim-detectors').checked,
+                    observable: field('export-stim-observable').value
+                }).text;
+            } catch (ex) {
+                stimTextElement.innerText = '# Failed to convert: ' + ex;
+            }
+        };
+        for (let id of ['export-stim-detectors', 'export-stim-observable']) {
+            field(id).addEventListener('input', render);
+        }
+        revision.latestActiveCommit().subscribe(jsonText => {
+            latest = jsonText;
+            render();
+        });
+        // Detectors are found by sampling the circuit, so only do it while the dialog is open.
+        obsExportsIsShowing.subscribe(() => render());
     })();
 
     // Export final output.

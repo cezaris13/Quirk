@@ -21,6 +21,17 @@
         </div>
 
         <br>
+        <strong>Stim Circuit</strong> - For sampling with <a href="https://github.com/quantumlib/Stim" target="_blank">Stim</a>: QND readouts become MPP records, corrections become rec[-k] feedback.
+        <div style="margin: 10px 0 0 20px;">
+            <button tabindex="104" id="export-stim-copy-button">Copy to Clipboard</button>&nbsp;&nbsp;<span id="export-stim-copy-result"></span>
+            <div style="margin: 6px 0; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center;">
+                <label title="Parities of the record that are fixed without noise, found by sampling the circuit."><input id="export-stim-detectors" type="checkbox" checked> detectors</label>
+                <label title="Record entries whose XOR is the logical observable, e.g. 4+5 for c4⊕c5.">observable <input id="export-stim-observable" type="text" placeholder="e.g. 4+5" style="width: 70px;"></label>
+            </div>
+            <pre tabindex="104" id="export-stim-pre" style="overflow:auto; max-width:600px; max-height:120px; border: 1px solid black; padding:5px; margin:2px;"></pre>
+        </div>
+
+        <br>
         <strong>Simulation Data JSON</strong> - Output amplitudes, detector results, display data, etc.
         <div style="margin: 10px 0 0 20px;">
             <button tabindex="105" id="export-amplitudes-button">Generate and Copy to Clipboard</button>&nbsp;<span id="export-amplitudes-result"></span>

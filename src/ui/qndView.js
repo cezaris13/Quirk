@@ -379,5 +379,8 @@ function resolveClassical(circuitJson) {
     return Object.assign({}, circuitJson, {cols: out});
 }
 
+// Displays don't change the state.
+const DISPLAY = /^(Bloch|Density|Chance|Amps|Sample|…)/;
+
 export {QndView, qndCheckInColumn, computeRecord, recordBitRows, RECORD_WIRE_GATES, parseRecArg, recOp, resolveClassical,
-    COND_RE}
+    COND_RE, DISPLAY}

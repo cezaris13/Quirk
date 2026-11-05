@@ -52,9 +52,10 @@ class DisplayedCircuit {
      * @param {undefined|!int} compressedColumnIndex
      * @param {undefined|!{col: !int, row: undefined|!int, resizeStyle: !boolean}} highlightedSlot
      * @param {undefined|!int} extraWireStartIndex
+     * @param {undefined|!int} spareAt See _spareRecordStart.
      * @private
      */
-    constructor(top, circuitDefinition, compressedColumnIndex, highlightedSlot, extraWireStartIndex) {
+    constructor(top, circuitDefinition, compressedColumnIndex, highlightedSlot, extraWireStartIndex, spareAt) {
         if (!Number.isFinite(top)) {
             throw new DetailedError("Bad top", {top, circuitDefinition});
         }
@@ -84,6 +85,11 @@ class DisplayedCircuit {
          * @private
          */
         this._extraWireStartIndex = extraWireStartIndex;
+        /**
+         * @type {undefined|!int}
+         * @private
+         */
+        this._spareAt = extraWireStartIndex === undefined ? undefined : spareAt;
     }
 
     /**
@@ -152,7 +158,11 @@ class DisplayedCircuit {
         if (wireIndex < 0) {
             throw new DetailedError("Bad wireIndex", {wireIndex});
         }
-        return new Rect(0, this.top + Config.WIRE_SPACING * wireIndex, Infinity, Config.WIRE_SPACING);
+        let b = this._spareRecordStart();
+        let s = this._extraWireStartIndex;
+        let shown = b === undefined ? wireIndex : wireIndex === s ? b : wireIndex >= b && wireIndex < s ? wireIndex + 1 :
+            wireIndex;
+        return new Rect(0, this.top + Config.WIRE_SPACING * shown, Infinity, Config.WIRE_SPACING);
     }
 
     /**
@@ -160,7 +170,21 @@ class DisplayedCircuit {
      * @returns {!int}
      */
     wireIndexAt(y) {
-        return Math.floor((y - this.top) / Config.WIRE_SPACING);
+        let shown = Math.floor((y - this.top) / Config.WIRE_SPACING);
+        let b = this._spareRecordStart();
+        let s = this._extraWireStartIndex;
+        return b === undefined ? shown : shown === b ? s : shown > b && shown <= s ? shown - 1 : shown;
+    }
+
+    /**
+     * While a one-wire gate is held over a circuit that ends with QND record wires, two spare wires are added: the
+     * first (a new qubit) is drawn just above the record wires, the second (a new record wire) below them. The layout
+     * is fixed when the gate is picked up, so the wires don't jump while it's moved around, and applied on drop.
+     * @returns {undefined|!int} The row where the record wires start, when the spare wires are in that layout.
+     * @private
+     */
+    _spareRecordStart() {
+        return this._spareAt;
     }
 
     //noinspection JSMethodCanBeStatic
@@ -180,7 +204,7 @@ class DisplayedCircuit {
      * @returns {undefined|!int}
      */
     indexOfDisplayedRowAt(y) {
-        let i = Math.floor((y - this.top) / Config.WIRE_SPACING);
+        let i = this.wireIndexAt(y);
         if (i < 0 || i >= this.circuitDefinition.numWires) {
             return undefined;
         }
@@ -598,8 +622,9 @@ class DisplayedCircuit {
      * @returns {!DisplayedCircuit}
      */
     afterTidyingUp() {
+        let def = this._spareAt === undefined ? this.circuitDefinition : this._defInDrawnOrder();
         return this.
-            withCircuit(this.circuitDefinition.
+            withCircuit(def.
                 withUncoveredColumnsRemoved().
                 withHeightOverlapsFixed().
                 withWidthOverlapsFixed().
@@ -659,7 +684,8 @@ class DisplayedCircuit {
      * @private
      */
     _drawWires(painter, showLabels, hand) {
-        let drawnWireCount = Math.min(this.circuitDefinition.numWires, (this._extraWireStartIndex || Infinity) + 1);
+        let drawnWireCount = this._spareRecordStart() !== undefined ? this.circuitDefinition.numWires :
+            Math.min(this.circuitDefinition.numWires, (this._extraWireStartIndex || Infinity) + 1);
 
         // Initial value labels
         if (showLabels) {
@@ -1042,7 +1068,8 @@ class DisplayedCircuit {
     _drawClassicalRows(painter) {
         let rec = this._recordAlways();
         let ctx = painter.ctx;
-        for (let row of rec.bitRows) {
+        let spare = this._spareRecordStart() === undefined ? [] : [this._extraWireStartIndex + 1];
+        for (let row of [...rec.bitRows, ...spare]) {
             if (row >= this.circuitDefinition.numWires) {
                 continue;
             }
@@ -1050,6 +1077,10 @@ class DisplayedCircuit {
             ctx.save();
             ctx.fillStyle = Config.BACKGROUND_COLOR_CIRCUIT;
             ctx.fillRect(0, y - 4, painter.width, 8);
+            ctx.fillRect(0, y - 12, 24, 24);  // Covers the |0⟩ label, also under a faded spare wire.
+            if (spare.indexOf(row) >= 0) {
+                ctx.globalAlpha *= 0.5;
+            }
             ctx.strokeStyle = Config.CLASSICAL_WIRE_COLOR;
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 3]);
@@ -1059,7 +1090,6 @@ class DisplayedCircuit {
             ctx.moveTo(25, y + 1.5);
             ctx.lineTo(painter.width, y + 1.5);
             ctx.stroke();
-            ctx.fillRect(0, y - 12, 24, 24);
             ctx.fillStyle = Config.CLASSICAL_WIRE_LABEL_COLOR;
             ctx.font = 'italic 13px ' + Config.MATH_FONT_FAMILY;
             ctx.textAlign = 'right';
@@ -1365,12 +1395,26 @@ class DisplayedCircuit {
         }
         let handWire = this.wireIndexAt(hand.pos.y);
         if (handWire < 0 || handWire >= this.circuitDefinition.numWires) {
-            // Dragged the row out of the circuit.
-            return this;
+            // Dragged the row out of the circuit. Without a spare wire (see withJustEnoughWires), drop the empty wire
+            // the row left behind instead of showing it as a new qubit.
+            if (this._extraWireStartIndex !== undefined) {
+                return this;
+            }
+            return this.withCircuit(this.circuitDefinition.withWireCount(
+                Math.max(Config.MIN_WIRE_COUNT, this.circuitDefinition.minimumRequiredWireCount())));
         }
 
         let heldRowHeight = seq(hand.heldRow.gates).map(g => g === undefined ? 1 : g.height).max(1);
         handWire = Math.min(handWire, this.circuitDefinition.numWires - heldRowHeight);
+        // Record wires only swap places with each other; qubit wires stay above them.
+        let bits = [...this._recordAlways().bitRows];
+        if (DisplayedCircuit._isRecordRow(hand.heldRow)) {
+            let lo = bits.length > 0 ? Math.min(...bits) : this.circuitDefinition.minimumRequiredWireCount();
+            let hi = bits.length > 0 ? Math.max(...bits) + 1 : lo;
+            handWire = Math.max(lo, Math.min(hi, handWire));
+        } else if (bits.length > 0) {
+            handWire = Math.min(handWire, Math.min(...bits));
+        }
 
         let newCols = [];
         for (let c = 0; c < this.circuitDefinition.columns.length; c++) {
@@ -1390,6 +1434,16 @@ class DisplayedCircuit {
 
         return this.withCircuit(newCircuitDef).
             _withHighlightedSlot({row: handWire, col: undefined, resizeStyle: false});
+    }
+
+    /**
+     * @param {!{initialState: *, gates: !Array.<undefined|!Gate>}} heldRow
+     * @returns {!boolean} Whether the row is a QND record wire (see recordBitRows).
+     * @private
+     */
+    static _isRecordRow(heldRow) {
+        let v = heldRow.initialState;
+        return (!v || v === '0') && heldRow.gates.some(g => g !== undefined && g.serializedId === 'QNDread');
     }
 
     /**
@@ -1458,44 +1512,26 @@ class DisplayedCircuit {
     }
 
     /**
-     * A gate dropped on the new wire below the circuit starts a new qubit: when the circuit ends with QND record
-     * wires, that wire goes above them, keeping the classical register at the bottom. (A QND readout dropped
-     * there makes a new record wire, so it stays at the bottom.)
-     * @param {!Gate} gate
-     * @param {!int} row
-     * @returns {!int} The row the gate should end up on.
-     * @private
-     */
-    _newQubitRowAboveRecord(gate, row) {
-        let n0 = this._extraWireStartIndex;
-        if (n0 === undefined || row < n0 || gate.height !== 1 || gate.serializedId === 'QNDread') {
-            return row;
-        }
-        let bits = this._recordAlways().bitRows;
-        let b = n0;
-        while (b > 0 && bits.has(b - 1)) {
-            b--;
-        }
-        return b < n0 ? b : row;
-    }
-
-    /**
-     * @param {!CircuitDefinition} def
-     * @param {!int} from
-     * @param {!int} to Lower than from: the wires in between move down by one.
+     * Puts the wires in the order they're drawn in, with unused spare wires last (to be trimmed).
      * @returns {!CircuitDefinition}
      * @private
      */
-    static _withRowMoved(def, from, to) {
-        let cols = def.columns.map(col => {
-            let gates = [...col.gates];
-            let g = gates.splice(from, 1)[0];
-            gates.splice(to, 0, g);
-            return new GateColumn(gates);
-        });
+    _defInDrawnOrder() {
+        let def = this.circuitDefinition;
+        let s = this._extraWireStartIndex;
+        let used = r => def.columns.some(col => col.gates[r] !== undefined) || def.customInitialValues.has(r);
+        let order = [...Array(def.numWires).keys()].
+            sort((r1, r2) => this.wireRect(r1).y - this.wireRect(r2).y).
+            filter(r => !(r === s || r === s + 1) || used(r));
+        for (let r = 0; r < def.numWires; r++) {
+            if (order.indexOf(r) < 0) {
+                order.push(r);
+            }
+        }
+        let cols = def.columns.map(col => new GateColumn(order.map(r => col.gates[r])));
         let init = new Map();
         for (let [k, v] of def.customInitialValues.entries()) {
-            init.set(k === from ? to : k >= to && k < from ? k + 1 : k, v);
+            init.set(order.indexOf(k), v);
         }
         return def.withColumns(cols).withInitialStates(init);
     }
@@ -1542,11 +1578,6 @@ class DisplayedCircuit {
         let newCircuitDef = this.circuitDefinition.
             withColumns(newCols).
             withWireCount(newWireCount);
-        let target = this._newQubitRowAboveRecord(addedGate, row);
-        if (target !== row) {
-            newCircuitDef = DisplayedCircuit._withRowMoved(newCircuitDef, row, target);
-            row = target;
-        }
         return this.withCircuit(newCircuitDef).
             _withHighlightedSlot({row, col: modificationPoint.col, resizeStyle: false}).
             _withCompressedColumnIndex(isInserting ? i : undefined).
@@ -1608,7 +1639,8 @@ class DisplayedCircuit {
             circuitDefinition,
             this._compressedColumnIndex,
             this._highlightedSlot,
-            this._extraWireStartIndex);
+            this._extraWireStartIndex,
+            this._spareAt);
     }
 
     /**
@@ -1622,7 +1654,8 @@ class DisplayedCircuit {
             this.circuitDefinition,
             compressedColumnIndex,
             this._highlightedSlot,
-            this._extraWireStartIndex);
+            this._extraWireStartIndex,
+            this._spareAt);
     }
 
     /**
@@ -1636,7 +1669,8 @@ class DisplayedCircuit {
             this.circuitDefinition,
             this._compressedColumnIndex,
             slot,
-            this._extraWireStartIndex);
+            this._extraWireStartIndex,
+            this._spareAt);
     }
 
     /**
@@ -1650,7 +1684,8 @@ class DisplayedCircuit {
             this.circuitDefinition,
             this._compressedColumnIndex,
             this._highlightedSlot,
-            extraWireStartIndex);
+            extraWireStartIndex,
+            this._spareAt);
     }
 
     /**
@@ -1668,6 +1703,10 @@ class DisplayedCircuit {
      * @returns {!DisplayedCircuit}
      */
     withJustEnoughWires(hand, extraWireCount) {
+        if (hand.heldRow !== undefined &&
+                (DisplayedCircuit._isRecordRow(hand.heldRow) || this._recordAlways().bitRows.size > 0)) {
+            extraWireCount = 0;  // A moved wire can't go below the record wires, so no new wire is needed.
+        }
         let neededWireCountForPlacement = hand.heldGate !== undefined ? hand.heldGate.height : 0;
         let desiredWireCount = this.circuitDefinition.minimumRequiredWireCount();
         let clampedWireCount = Math.min(
@@ -1675,8 +1714,23 @@ class DisplayedCircuit {
             Math.max(
                 Math.min(1, neededWireCountForPlacement),
                 Math.max(Config.MIN_WIRE_COUNT, desiredWireCount) + extraWireCount));
-        return this.withCircuit(this.circuitDefinition.withWireCount(clampedWireCount)).
+        let result = this.withCircuit(this.circuitDefinition.withWireCount(clampedWireCount)).
             _withExtraWireStartIndex(extraWireCount === 0 ? undefined : this.circuitDefinition.numWires);
+        if (extraWireCount === 1 && hand.heldGate !== undefined && hand.heldGate.height === 1) {
+            let spare = this.withJustEnoughWires(hand, 2);
+            let s = this.circuitDefinition.numWires;
+            let bits = this._recordAlways().bitRows;
+            let b = s;
+            while (b > 0 && bits.has(b - 1)) {
+                b--;
+            }
+            if (b < s && spare.circuitDefinition.numWires === s + 2 && spare._extraWireStartIndex === s &&
+                    this.circuitDefinition.minimumRequiredWireCount() <= s) {
+                return new DisplayedCircuit(spare.top, spare.circuitDefinition, spare._compressedColumnIndex,
+                    spare._highlightedSlot, s, b);
+            }
+        }
+        return result;
     }
 
     /**
@@ -1970,7 +2024,8 @@ class DisplayedCircuit {
                 this.circuitDefinition.withColumns(newCols),
                 undefined,
                 undefined,
-                this._extraWireStartIndex),
+                this._extraWireStartIndex,
+                this._spareAt),
             newHand: hand.withHeldGate(gate, offset)
         };
     }
@@ -2064,7 +2119,8 @@ class DisplayedCircuit {
 
     importantWireCount() {
         return Math.max(
-            this.circuitDefinition.numWires - (this._extraWireStartIndex === Config.MAX_ROW_COUNT ? 0 : 1),
+            this.circuitDefinition.numWires - (this._spareRecordStart() !== undefined ? 2 :
+                this._extraWireStartIndex === Config.MAX_ROW_COUNT ? 0 : 1),
             Config.MIN_WIRE_COUNT,
             this.circuitDefinition.minimumRequiredWireCount());
     }
