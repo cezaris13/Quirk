@@ -461,7 +461,7 @@ function fromJson_CircuitDefinition(json, context=undefined) {
     }
     numWires = Math.max(
         Config.MIN_WIRE_COUNT,
-        Math.min(numWires, Config.MAX_WIRE_COUNT),
+        Math.min(numWires, Config.MAX_ROW_COUNT),
         ...[...initialValues.keys()].map(e => e + 1));
 
     gateCols = gateCols.map(col => new GateColumn([

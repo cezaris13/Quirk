@@ -114,7 +114,7 @@ class DisplayedCircuit {
      */
     _groundedWireCount() {
         let pseudoCount =
-            this._extraWireStartIndex !== undefined && this._extraWireStartIndex !== Config.MAX_WIRE_COUNT ? 1 : 0;
+            this._extraWireStartIndex !== undefined && this._extraWireStartIndex !== Config.MAX_ROW_COUNT ? 1 : 0;
 
         let n = Math.max(Config.MIN_WIRE_COUNT, this.circuitDefinition.numWires) - pseudoCount;
         return Math.max(n, this.circuitDefinition.minimumRequiredWireCount());
@@ -739,11 +739,11 @@ class DisplayedCircuit {
             }
         }
         painter.ctx.restore();
-        if (this._extraWireStartIndex !== undefined && this.circuitDefinition.numWires === Config.MAX_WIRE_COUNT) {
+        if (this._extraWireStartIndex !== undefined && this.circuitDefinition.numWires === Config.MAX_ROW_COUNT) {
             painter.print(
-                `(Max wires. Qubit limit is ${Config.MAX_WIRE_COUNT}.)`,
+                `(Max wires: ${Config.MAX_ROW_COUNT}. Qubit limit is ${Config.MAX_WIRE_COUNT}; QND record bits don't count.)`,
                 5,
-                this.wireRect(Config.MAX_WIRE_COUNT).y,
+                this.wireRect(Config.MAX_ROW_COUNT).y,
                 'left',
                 'top',
                 'red',
@@ -813,7 +813,18 @@ class DisplayedCircuit {
         if (isDisabledReason === undefined) {
             return;
         }
+        DisplayedCircuit._paintGateNotice(painter, gateRect, isDisabledReason, isHighlighted, true);
+    }
 
+    /**
+     * Quirk's yellow notice over a gate, with red text. `strike` crosses it out (the gate isn't applied).
+     * @param {!Painter} painter
+     * @param {!Rect} gateRect
+     * @param {!string} text
+     * @param {!boolean} isHighlighted
+     * @param {!boolean} strike
+     */
+    static _paintGateNotice(painter, gateRect, text, isHighlighted, strike) {
         painter.ctx.save();
         if (isHighlighted) {
             painter.ctx.globalAlpha *= 0.3;
@@ -821,12 +832,14 @@ class DisplayedCircuit {
         painter.ctx.globalAlpha *= 0.5;
         painter.fillRect(gateRect.paddedBy(5), 'yellow');
         painter.ctx.globalAlpha *= 2;
-        painter.strokeLine(gateRect.topLeft(), gateRect.bottomRight(), 'orange', 3);
-        let r = painter.printParagraph(isDisabledReason, gateRect.paddedBy(5), new Point(0.5, 0.5), 'red');
+        if (strike) {
+            painter.strokeLine(gateRect.topLeft(), gateRect.bottomRight(), 'orange', 3);
+        }
+        let r = painter.printParagraph(text, gateRect.paddedBy(5), new Point(0.5, 0.5), 'red');
         painter.ctx.globalAlpha *= 0.5;
         painter.fillRect(r.paddedBy(2), 'yellow');
         painter.ctx.globalAlpha *= 2;
-        painter.printParagraph(isDisabledReason, gateRect.paddedBy(5), new Point(0.5, 0.5), 'red');
+        painter.printParagraph(text, gateRect.paddedBy(5), new Point(0.5, 0.5), 'red');
         painter.ctx.restore()
     }
 
@@ -1027,10 +1040,7 @@ class DisplayedCircuit {
      * @private
      */
     _drawClassicalRows(painter) {
-        let rec = this._record();
-        if (rec === undefined) {
-            return;
-        }
+        let rec = this._recordAlways();
         let ctx = painter.ctx;
         for (let row of rec.bitRows) {
             if (row >= this.circuitDefinition.numWires) {
@@ -1392,7 +1402,7 @@ class DisplayedCircuit {
             return this;
         }
         let handWire = this.wireIndexAt(hand.pos.y);
-        if (handWire < 0 || handWire >= Config.MAX_WIRE_COUNT || hand.pos.x <= 1) {
+        if (handWire < 0 || handWire >= Config.MAX_ROW_COUNT || hand.pos.x <= 1) {
             // Dragged the gate column out of the circuit.
             return this;
         }
@@ -1427,7 +1437,7 @@ class DisplayedCircuit {
         }
 
         // Shift gates downward.
-        while (rowShift > 0 && new GateColumn(gatesOfCol).minimumRequiredWireCount() < Config.MAX_WIRE_COUNT) {
+        while (rowShift > 0 && new GateColumn(gatesOfCol).minimumRequiredWireCount() < Config.MAX_ROW_COUNT) {
             gatesOfCol.unshift(undefined);
             if (new GateColumn(gatesOfCol).minimumRequiredWireCount() < gatesOfCol.length) {
                 gatesOfCol.pop();
@@ -1445,6 +1455,49 @@ class DisplayedCircuit {
 
         newCols.splice(insertCol, isInsert ? 0 : 1, new GateColumn(gatesOfCol));
         return expandedCircuit.withColumns(newCols).withTrailingSpacersIncluded();
+    }
+
+    /**
+     * A gate dropped on the new wire below the circuit starts a new qubit: when the circuit ends with QND record
+     * wires, that wire goes above them, keeping the classical register at the bottom. (A QND readout dropped
+     * there makes a new record wire, so it stays at the bottom.)
+     * @param {!Gate} gate
+     * @param {!int} row
+     * @returns {!int} The row the gate should end up on.
+     * @private
+     */
+    _newQubitRowAboveRecord(gate, row) {
+        let n0 = this._extraWireStartIndex;
+        if (n0 === undefined || row < n0 || gate.height !== 1 || gate.serializedId === 'QNDread') {
+            return row;
+        }
+        let bits = this._recordAlways().bitRows;
+        let b = n0;
+        while (b > 0 && bits.has(b - 1)) {
+            b--;
+        }
+        return b < n0 ? b : row;
+    }
+
+    /**
+     * @param {!CircuitDefinition} def
+     * @param {!int} from
+     * @param {!int} to Lower than from: the wires in between move down by one.
+     * @returns {!CircuitDefinition}
+     * @private
+     */
+    static _withRowMoved(def, from, to) {
+        let cols = def.columns.map(col => {
+            let gates = [...col.gates];
+            let g = gates.splice(from, 1)[0];
+            gates.splice(to, 0, g);
+            return new GateColumn(gates);
+        });
+        let init = new Map();
+        for (let [k, v] of def.customInitialValues.entries()) {
+            init.set(k === from ? to : k >= to && k < from ? k + 1 : k, v);
+        }
+        return def.withColumns(cols).withInitialStates(init);
     }
 
     /**
@@ -1470,7 +1523,7 @@ class DisplayedCircuit {
         let emptyCol = GateColumn.empty(this.circuitDefinition.numWires);
         let i = modificationPoint.col;
         let isInserting = modificationPoint.isInsert;
-        let row = Math.min(modificationPoint.row, Math.max(0, Config.MAX_WIRE_COUNT - addedGate.height));
+        let row = Math.min(modificationPoint.row, Math.max(0, Config.MAX_ROW_COUNT - addedGate.height));
         let newCols = seq(this.circuitDefinition.columns).
             padded(i, emptyCol).
             ifThen(isInserting, s => s.withInsertedItem(i, emptyCol)).
@@ -1482,13 +1535,18 @@ class DisplayedCircuit {
             Math.max(
                 this.circuitDefinition.numWires,
                 addedGate.height + row));
-        if (newWireCount > Config.MAX_WIRE_COUNT) {
+        if (newWireCount > Config.MAX_ROW_COUNT) {
             return this;
         }
 
         let newCircuitDef = this.circuitDefinition.
             withColumns(newCols).
             withWireCount(newWireCount);
+        let target = this._newQubitRowAboveRecord(addedGate, row);
+        if (target !== row) {
+            newCircuitDef = DisplayedCircuit._withRowMoved(newCircuitDef, row, target);
+            row = target;
+        }
         return this.withCircuit(newCircuitDef).
             _withHighlightedSlot({row, col: modificationPoint.col, resizeStyle: false}).
             _withCompressedColumnIndex(isInserting ? i : undefined).
@@ -1510,9 +1568,9 @@ class DisplayedCircuit {
         }
         let row = Math.min(
             this.wireIndexAt(hand.pos.y - hand.holdOffset.y),
-            Config.MAX_WIRE_COUNT - 1);
+            Config.MAX_ROW_COUNT - 1);
         let newGate = seq(gate.gateFamily).minBy(g => Math.abs(g.height - (row - hand.resizingGateSlot.y + 1)));
-        let newWireCount = Math.min(Config.MAX_WIRE_COUNT,
+        let newWireCount = Math.min(Config.MAX_ROW_COUNT,
             Math.max(this.circuitDefinition.numWires, newGate.height + hand.resizingGateSlot.y));
         let newCols = seq(this.circuitDefinition.columns).
             withTransformedItem(hand.resizingGateSlot.x,
@@ -1613,7 +1671,7 @@ class DisplayedCircuit {
         let neededWireCountForPlacement = hand.heldGate !== undefined ? hand.heldGate.height : 0;
         let desiredWireCount = this.circuitDefinition.minimumRequiredWireCount();
         let clampedWireCount = Math.min(
-            Config.MAX_WIRE_COUNT,
+            Config.MAX_ROW_COUNT,
             Math.max(
                 Math.min(1, neededWireCountForPlacement),
                 Math.max(Config.MIN_WIRE_COUNT, desiredWireCount) + extraWireCount));
@@ -1989,9 +2047,24 @@ class DisplayedCircuit {
     /**
      * @returns {!int}
      */
+    /**
+     * @returns {!Array.<!int>} The important wires that are qubits, not classical record bits.
+     * @private
+     */
+    _qubitRows() {
+        let bitRows = this._recordAlways().bitRows;
+        let rows = [];
+        for (let i = 0; i < this.importantWireCount(); i++) {
+            if (!bitRows.has(i)) {
+                rows.push(i);
+            }
+        }
+        return rows.length > 0 ? rows : [0];
+    }
+
     importantWireCount() {
         return Math.max(
-            this.circuitDefinition.numWires - (this._extraWireStartIndex === Config.MAX_WIRE_COUNT ? 0 : 1),
+            this.circuitDefinition.numWires - (this._extraWireStartIndex === Config.MAX_ROW_COUNT ? 0 : 1),
             Config.MIN_WIRE_COUNT,
             this.circuitDefinition.minimumRequiredWireCount());
     }
@@ -2009,7 +2082,22 @@ class DisplayedCircuit {
         let blochCol = chanceCol + 1;
         let numWire = this.importantWireCount();
 
+        let bitRows = this._recordAlways().bitRows;
+        if (stats.circuitDefinition.numWires > Config.MAX_WIRE_COUNT && stats.qubitRows === undefined) {
+            let warnRect = new Rect(this.opRect(chanceCol - 1).x, this.wireRect(0).y, 320, 60);
+            painter.fillRect(warnRect, Config.BACKGROUND_COLOR_CIRCUIT);
+            painter.printParagraph(
+                `Too many qubits to simulate: at most ${Config.MAX_WIRE_COUNT}, including one used by QND ` +
+                    `readouts. QND record-bit wires don't count.`,
+                warnRect,
+                new Point(0, 0),
+                Config.RECORD_BAD_COLOR);
+            return;
+        }
         for (let i = 0; i < numWire; i++) {
+            if (bitRows.has(i)) {
+                continue;  // Classical record bits: no chance/Bloch output.
+            }
             let p = stats.controlledWireProbabilityJustAfter(i, Infinity);
             let chanceRect = this.gateRect(i, chanceCol);
             GatePainting.paintRounded(painter, chanceRect,
@@ -2055,7 +2143,7 @@ class DisplayedCircuit {
         let amplitudeGrid = this._outputStateAsMatrix(stats);
         let gridRect = this._rectForSuperpositionDisplay();
 
-        let numWire = this.importantWireCount();
+        let numWire = this._qubitRows().length;
         GatePainting.paintRounded(painter, gridRect, () => MathPainter.paintMatrix(
             painter,
             amplitudeGrid,
@@ -2079,7 +2167,7 @@ class DisplayedCircuit {
      */
     _drawOutputSuperpositionDisplay_labels(painter) {
         let gridRect = this._rectForSuperpositionDisplay();
-        let numWire = this.importantWireCount();
+        let numWire = this._qubitRows().length;
         _cachedRowLabelDrawer.paint(gridRect.right(), gridRect.y, painter, numWire);
         _cachedColLabelDrawer.paint(gridRect.x, gridRect.bottom(), painter, numWire);
     }
@@ -2090,12 +2178,60 @@ class DisplayedCircuit {
      * @private
      */
     _outputStateAsMatrix(stats) {
-        let numWire = this.importantWireCount();
-        let buf = stats.finalState.rawBuffer();
-        if (stats.circuitDefinition.numWires !== numWire) {
-            let r = new Float32Array(2 << numWire);
-            r.set(buf.slice(0, r.length));
-            buf = r;
+        let qubits = this._qubitRows();
+        let numWire = qubits.length;
+        let full = stats.finalState.rawBuffer();
+        // Record bits simulated classically: finalState already holds only the qubits, in stats.qubitRows order.
+        let simRows = stats.qubitRows;
+        // Record bits are definite (QNDread samples), so slice the state at the most likely bit values.
+        let bitMask = 0;
+        for (let row of this._recordAlways().bitRows) {
+            if (row < stats.circuitDefinition.numWires) {
+                bitMask |= 1 << row;
+            }
+        }
+        let best = 0;
+        for (let i = 0; i < full.length / 2; i++) {
+            let w = full[2*i]*full[2*i] + full[2*i+1]*full[2*i+1];
+            let b = full[2*best]*full[2*best] + full[2*best+1]*full[2*best+1];
+            if (w > b) {
+                best = i;
+            }
+        }
+        let base = simRows === undefined ? best & bitMask : 0;
+        let buf = new Float32Array(2 << numWire);
+        for (let j = 0; j < (1 << numWire); j++) {
+            let i = base;
+            qubits.forEach((row, k) => {
+                let pos = simRows === undefined ? row : simRows.indexOf(row);
+                if ((j & (1 << k)) && pos >= 0) {
+                    i |= 1 << pos;
+                }
+            });
+            if (2*i + 1 < full.length) {
+                buf[2*j] = full[2*i];
+                buf[2*j+1] = full[2*i+1];
+            }
+        }
+        if (bitMask !== 0) {
+            // Each frame samples new readout outcomes, and the corrected state differs between them only by a
+            // global phase (e.g. −|ψ⟩). Fix it so the largest amplitude is real and positive, instead of flickering.
+            // Reference: the first amplitude near the largest, so float noise between equal ones can't swap it.
+            let norms = [];
+            for (let j = 0; j < buf.length / 2; j++) {
+                norms.push(buf[2*j]*buf[2*j] + buf[2*j+1]*buf[2*j+1]);
+            }
+            let biggest = Math.max(...norms);
+            let top = norms.findIndex(v => v >= biggest - 1e-4);
+            let mag = Math.hypot(buf[2*top], buf[2*top+1]);
+            if (mag > 0) {
+                let [cr, ci] = [buf[2*top] / mag, -buf[2*top+1] / mag];
+                for (let j = 0; j < buf.length / 2; j++) {
+                    let [re, im] = [buf[2*j], buf[2*j+1]];
+                    buf[2*j] = re*cr - im*ci;
+                    buf[2*j+1] = re*ci + im*cr;
+                }
+            }
         }
 
         let [colWires, rowWires] = [Math.floor(numWire/2), Math.ceil(numWire/2)];
@@ -2110,7 +2246,7 @@ class DisplayedCircuit {
      */
     _rectForSuperpositionDisplay() {
         let col = this.clampedCircuitColCount() + EXTRA_COLS_FOR_SINGLE_QUBIT_DISPLAYS + 1;
-        let numWire = this.importantWireCount();
+        let numWire = this._qubitRows().length;
         let [colWires, rowWires] = [Math.floor(numWire/2), Math.ceil(numWire/2)];
         let [colCount, rowCount] = [1 << colWires, 1 << rowWires];
         let topRect = this.gateRect(0, col);

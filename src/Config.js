@@ -26,6 +26,9 @@ Config.EMPTY_CIRCUIT_TITLE = 'Quirk: Quantum Circuit Simulator';
 // I see obvious errors when I set this to 20, and things get pretty laggy past 16.
 // Beware setting it too high.
 Config.MAX_WIRE_COUNT = 16;
+// Rows the editor allows: qubits (at most MAX_WIRE_COUNT) plus QND record-bit wires, which are simulated
+// classically and don't count as qubits. Kept below 31 so per-wire bitmasks stay valid ints.
+Config.MAX_ROW_COUNT = 30;
 Config.SIMPLE_SUPERPOSITION_DRAWING_WIRE_THRESHOLD = 14;
 
 Config.MIN_WIRE_COUNT = 2;

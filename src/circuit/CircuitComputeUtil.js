@@ -63,7 +63,14 @@ function setGateBuilderEffectToCircuit(builder, circuitDefinition) {
  *     customStatsMap: !Array.<*>
  * }}
  */
-function advanceStateWithCircuit(ctx, circuitDefinition, collectStats) {
+/**
+ * @param {!CircuitEvalContext} ctx
+ * @param {!CircuitDefinition} circuitDefinition
+ * @param {!boolean} collectStats
+ * @param {undefined|!{skipColumn: !function(!int): !boolean, afterColumn: !function(!int, !CircuitEvalContext)}} hooks
+ *     Optional per-column hooks, used to run classically-conditioned columns (see QndRecordSim).
+ */
+function advanceStateWithCircuit(ctx, circuitDefinition, collectStats, hooks=undefined) {
     // Prep stats collection.
     let colQubitDensities = [];
     let customStats = [];
@@ -94,7 +101,8 @@ function advanceStateWithCircuit(ctx, circuitDefinition, collectStats) {
             ctx,
             circuitDefinition,
             col,
-            statsCallback(col));
+            statsCallback(col),
+            hooks);
     }
 
     if (collectStats) {
@@ -172,7 +180,8 @@ function _advanceStateWithCircuitDefinitionColumn(
         ctx,
         circuitDefinition,
         col,
-        statsCallback) {
+        statsCallback,
+        hooks) {
 
     let controls = ctx.controls.and(circuitDefinition.colControls(col).shift(ctx.row));
     let controlTex = CircuitShaders.controlMask(controls).toBoolTexture(ctx.wireCount);
@@ -201,10 +210,17 @@ function _advanceStateWithCircuitDefinitionColumn(
         trader,
         colContext);
 
-    circuitDefinition.applyBeforeOperationsInCol(col, aroundCtx);
-    circuitDefinition.applyMainOperationsInCol(col, mainCtx);
-    statsCallback(mainCtx);
-    circuitDefinition.applyAfterOperationsInCol(col, aroundCtx);
+    if (hooks !== undefined && hooks.skipColumn(col)) {
+        statsCallback(mainCtx);
+    } else {
+        circuitDefinition.applyBeforeOperationsInCol(col, aroundCtx);
+        circuitDefinition.applyMainOperationsInCol(col, mainCtx);
+        statsCallback(mainCtx);
+        circuitDefinition.applyAfterOperationsInCol(col, aroundCtx);
+    }
+    if (hooks !== undefined) {
+        hooks.afterColumn(col, aroundCtx);
+    }
 
     controlTex.deallocByDepositingInPool("controlTex in _advanceStateWithCircuitDefinitionColumn");
 }

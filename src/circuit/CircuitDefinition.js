@@ -27,6 +27,7 @@ import {Gates, INITIAL_STATES_TO_GATES} from "../gates/AllGates.js"
 import {Point} from "../math/Point.js"
 import {seq, Seq} from "../base/Seq.js"
 import {Util} from "../base/Util.js"
+import {recordBitRows, RECORD_WIRE_GATES} from "../ui/qndView.js"
 
 /**
  * Defines a circuit layout, with wires and columns and gates.
@@ -109,6 +110,9 @@ class CircuitDefinition {
             this._colRowDisabledReason.push(rowReasons);
             this._measureMasks.push(mask);
             prevStickyCtx = stickyCtx;
+        }
+        if (!isNested) {
+            this._disableNonRecordGatesOnRecordWires();
         }
 
         /**
@@ -913,6 +917,49 @@ class CircuitDefinition {
      * @param {!int} row
      * @returns {undefined|!string}
      */
+    /**
+     * QND record wires are classical: only readouts and the controls conditioning on them (•, ◦, Z-parity) act
+     * there. Any other gate touching one (including a tall gate spanning it, and the other half of a swap) is
+     * disabled, so the wire stays a record bit instead of silently becoming a qubit.
+     * @private
+     */
+    _disableNonRecordGatesOnRecordWires() {
+        let init = [];
+        for (let row = 0; row < this.numWires; row++) {
+            let v = this.customInitialValues.get(row);
+            init.push(v === undefined ? 0 : v);
+        }
+        let bits = recordBitRows(this.columns.map(c => c.gates.map(g => g === undefined ? undefined : g.serializedId)),
+            init);
+        if (bits.size === 0) {
+            return;
+        }
+        const REASON = 'not allowed\non classical\nwire';
+        this.columns.forEach((col, c) => {
+            let reasons = this._colRowDisabledReason[c];
+            let swapHit = false;
+            col.gates.forEach((g, row) => {
+                if (g === undefined || RECORD_WIRE_GATES.indexOf(g.serializedId) !== -1) {
+                    return;
+                }
+                for (let k = 0; k < g.height; k++) {
+                    if (bits.has(row + k)) {
+                        reasons[row] = reasons[row] || REASON;
+                        swapHit = swapHit || g === Gates.Special.SwapHalf;
+                        return;
+                    }
+                }
+            });
+            if (swapHit) {
+                col.gates.forEach((g, row) => {
+                    if (g === Gates.Special.SwapHalf) {
+                        reasons[row] = reasons[row] || REASON;
+                    }
+                });
+            }
+        });
+    }
+
     gateAtLocIsDisabledReason(col, row) {
         if (col < 0 || row < 0 || col >= this._colRowDisabledReason.length || row >= this.numWires) {
             return undefined;

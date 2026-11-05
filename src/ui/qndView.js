@@ -151,32 +151,30 @@ function qndCheckInColumn(col) {
  * @param {!Array.<!Array.<*>>} cols Circuit JSON columns.
  * @param {!Array.<*>} init Circuit JSON initial states.
  */
-function computeRecord(cols, init) {
+/** The gates allowed on a QND record wire: readouts, and controls conditioning on the bit. */
+const RECORD_WIRE_GATES = ['QNDread', '•', '◦', 'zpar'];
+
+/**
+ * Record wires: start in |0⟩ and hold a QND readout. They're classical; other gates on them are disabled.
+ * @param {!Array.<!Array.<*>>} cols
+ * @param {!Array.<*>} init
+ * @returns {!Set.<!int>}
+ */
+function recordBitRows(cols, init) {
     const idOf = g => g && typeof g === 'object' ? g.id : g;
     let n = Math.max(0, ...cols.map(c => c.length), init.length);
-
-    // Wires starting in |0⟩ that are only written by QNDread and only used as controls.
     let bitRows = new Set();
     for (let q = 0; q < n; q++) {
-        if (!init[q] || init[q] === '0' || init[q] === 0) {
-            let reads = 0;
-            let other = false;
-            for (let col of cols) {
-                let id = idOf(col[q]);
-                if (id === undefined || id === null || id === 1) {
-                    continue;
-                }
-                if (id === 'QNDread') {
-                    reads++;
-                } else if (id !== '•') {
-                    other = true;
-                }
-            }
-            if (reads > 0 && !other) {
-                bitRows.add(q);
-            }
+        if ((!init[q] || init[q] === '0' || init[q] === 0) && cols.some(col => idOf(col[q]) === 'QNDread')) {
+            bitRows.add(q);
         }
     }
+    return bitRows;
+}
+
+function computeRecord(cols, init) {
+    const idOf = g => g && typeof g === 'object' ? g.id : g;
+    let bitRows = recordBitRows(cols, init);
 
     let names = recordNames(cols);
     let readName = new Map();
@@ -185,6 +183,7 @@ function computeRecord(cols, init) {
     let live = [];
     cols.forEach((col, c) => {
         let ctlRows = [];
+        let parityRows = [];
         let targets = [];
         let blocked = false;
         col.forEach((g, q) => {
@@ -194,18 +193,27 @@ function computeRecord(cols, init) {
             }
             if (id === '•') {
                 ctlRows.push(q);
+            } else if (id === 'zpar' && bitRows.has(q)) {
+                // Z-parity controls on bit wires: the correction is conditioned on the XOR of those entries.
+                parityRows.push(q);
             } else if (id === 'QNDread' || /par$/.test(id) || id === '◦') {
                 blocked = true;
             } else {
                 targets.push(q);
             }
         });
+        let parity = parityRows.length > 0;
+        if (parity && ctlRows.length === 0) {
+            ctlRows = parityRows;
+        } else if (parity) {
+            blocked = true;  // Mixed AND / XOR conditions aren't shown as a single classical gate.
+        }
         if (!blocked &&
                 ctlRows.length &&
                 targets.length &&
                 ctlRows.every(q => bitRows.has(q) && lastRead.has(q)) &&
                 targets.every(q => !bitRows.has(q))) {
-            cond.set(c, {keys: ctlRows.map(q => lastRead.get(q)), ctlRows, targets});
+            cond.set(c, {keys: ctlRows.map(q => lastRead.get(q)), ctlRows, targets, parity});
         }
         col.forEach((g, q) => {
             if (idOf(g) === 'QNDread') {
@@ -352,20 +360,24 @@ function resolveClassical(circuitJson) {
             out.push(base);
         }
         for (let {bits, and, targets} of groups.values()) {
-            // AND: one column controlled by all the bit wires. XOR: one column per bit (the corrections are Paulis).
-            for (let ctl of and ? [bits] : bits.map(b => [b])) {
-                let newCol = [];
-                for (let [q, g] of ctl.map(b => [b, '•']).concat(targets)) {
-                    while (newCol.length <= q) {
-                        newCol.push(1);
-                    }
-                    newCol[q] = g;
-                }
-                out.push(newCol);
+            // One entry: a plain control. Several: Z-parity controls, so the column applies the XOR c_i⊕c_j⊕...
+            let entries = [];
+            for (let b of bits) {
+                // AND: plain controls. XOR: Z-parity controls (the column applies on odd parity).
+                entries.push([b, bits.length === 1 || and ? '•' : 'zpar']);
             }
+            let newCol = [];
+            for (let [q, g] of entries.concat(targets)) {
+                while (newCol.length <= q) {
+                    newCol.push(1);
+                }
+                newCol[q] = g;
+            }
+            out.push(newCol);
         }
     });
     return Object.assign({}, circuitJson, {cols: out});
 }
 
-export {QndView, qndCheckInColumn, computeRecord, parseRecArg, recOp, resolveClassical, COND_RE}
+export {QndView, qndCheckInColumn, computeRecord, recordBitRows, RECORD_WIRE_GATES, parseRecArg, recOp, resolveClassical,
+    COND_RE}
