@@ -2,6 +2,7 @@
 <html>
     <head lang="en">
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="keywords" content="quantum,circuit,simulator,quirk">
         <meta name="description" content="Quirk is an open-source drag-and-drop quantum circuit simulator for exploring and understanding small quantum circuits.">
         <title>Quirk: Quantum Circuit Simulator</title>
@@ -51,6 +52,18 @@
             html[data-theme=dark] #qnd-bar { background: #232427 !important; border-color: #393b40 !important; }
             html[data-theme=dark] #qnd-bar > b { color: #dfe1e5 !important; } html[data-theme=dark] #qnd-bias-out b[style*="#c2410c"] { color: #ff9a6b !important; } html[data-theme=dark] #qnd-bias-out b[style*="#0f8a6c"] { color: #3fd0a4 !important; }
             html[data-theme=dark] #qnd-info, html[data-theme=dark] #qnd-stats { color: #8a8d93 !important; }
+            /* Phones: the circuit scrolls sideways in its own box (zoom with − / +), controls wrap, dialogs fit. */
+            @media (max-width: 900px) {
+                #canvasDiv { overflow-x: auto; overflow-y: hidden; }
+            }
+            @media (max-width: 700px) {
+                #inspectorDiv button { min-width: 36px !important; padding: 2px 6px; }
+                #qnd-bar { gap: 6px !important; }
+                #qnd-bar select { max-width: 100% !important; flex: 1 1 100%; }
+                #qnd-bar kbd { display: none; }
+                #export-div > div:nth-child(2) { left: 6px !important; right: 6px; top: 6px !important; padding: 10px !important; }
+                #export-div pre, #export-div div { max-width: 100% !important; }
+            }
             html[data-theme=dark] [style*="background-color:white"], html[data-theme=dark] [style*="background-color: white"],
             html[data-theme=dark] [style*="background-color:#f6f5f1"] { background-color: #232427 !important; color: #dfe1e5; }
             html[data-theme=dark] [style*="border:1px solid black"], html[data-theme=dark] [style*="border: 1px solid black"] { border-color: #43454a !important; }
@@ -87,6 +100,7 @@
                 &nbsp;
                 <button id="gate-forge-button" style="min-width: 50px; min-height: 30px;">Make Gate</button>
                 <button id="theme-button" title="Toggle light / dark mode" style="min-width: 50px; min-height: 30px;">☾ Dark</button>
+                <span id="zoom-controls" title="Zoom the circuit (remembered)"><button id="zoom-out" style="min-width: 30px; min-height: 30px;">−</button><button id="zoom-reset" style="min-width: 50px; min-height: 30px;">100%</button><button id="zoom-in" style="min-width: 30px; min-height: 30px;">+</button></span>
                 &nbsp;
                 &nbsp;
                 &nbsp;

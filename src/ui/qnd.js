@@ -187,6 +187,37 @@ function initQnd(revision) {
         });
     }
 
+    // Zoom (− / 100% / +): starts smaller on narrow screens, remembered once changed.
+    let zoomLabel = document.getElementById('zoom-reset');
+    let setZoom = (z, remember) => {
+        Config.CANVAS_SCALE = Math.max(0.4, Math.min(1.5, Math.round(z * 10) / 10));
+        if (zoomLabel) {
+            zoomLabel.textContent = Math.round(Config.CANVAS_SCALE * 100) + '%';
+        }
+        if (remember) {
+            try {
+                localStorage.setItem('quirk-zoom', String(Config.CANVAS_SCALE));
+            } catch (_) {
+                // Storage may be unavailable.
+            }
+        }
+        QndView.requestRedraw();
+    };
+    let savedZoom = NaN;
+    try {
+        savedZoom = parseFloat(localStorage.getItem('quirk-zoom'));
+    } catch (_) {
+        // Storage may be unavailable.
+    }
+    setZoom(savedZoom > 0 ? savedZoom : window.innerWidth < 700 ? 0.6 : 1, false);
+    let zoomSteps = [['zoom-out', z => z - 0.1], ['zoom-in', z => z + 0.1], ['zoom-reset', () => 1]];
+    for (let [id, f] of zoomSteps) {
+        let button = document.getElementById(id);
+        if (button) {
+            button.addEventListener('click', () => setZoom(f(Config.CANVAS_SCALE), true));
+        }
+    }
+
     let pauseBox = document.getElementById('qnd-pause');
     let setPause = on => {
         QndView.pauseSampling = on;

@@ -135,6 +135,9 @@ Config.SHADE_RGB = '0, 0, 0';                 // Base of translucent indicator o
 Config.TOOLTIP_BACK_COLOR = '#F9FFF9';
 Config.TOOLTIP_TITLE_COLOR = 'blue';
 
+/** How much the circuit canvas is zoomed (below 1 on phones); pointer positions are divided by it. */
+Config.CANVAS_SCALE = 1;
+
 /** Seconds between new samples of QND readouts and resets (instead of every frame, which kept the CPU busy). */
 Config.QND_RESAMPLE_SECONDS = 0.4;
 

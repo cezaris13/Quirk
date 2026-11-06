@@ -102,7 +102,7 @@ revision.latestActiveCommit().subscribe(jsonText => {
  */
 let desiredCanvasSizeFor = curInspector => {
     return {
-        w: Math.max(canvasDiv.clientWidth, curInspector.desiredWidth()),
+        w: Math.max(canvasDiv.clientWidth / Config.CANVAS_SCALE, curInspector.desiredWidth()),
         h: curInspector.desiredHeight()
     };
 };
@@ -178,11 +178,12 @@ const redrawNow = () => {
 
     // Draw at the screen's pixel density (high-DPI screens, browser zoom) so the circuit isn't blurry.
     let size = desiredCanvasSizeFor(shown);
-    let pixelRatio = window.devicePixelRatio || 1;
+    // Zoomed (Config.CANVAS_SCALE) by drawing at a higher or lower ratio: the layout keeps its own units.
+    let pixelRatio = (window.devicePixelRatio || 1) * Config.CANVAS_SCALE;
     canvas.width = Math.round(size.w * pixelRatio);
     canvas.height = Math.round(size.h * pixelRatio);
-    canvas.style.width = size.w + 'px';
-    canvas.style.height = size.h + 'px';
+    canvas.style.width = size.w * Config.CANVAS_SCALE + 'px';
+    canvas.style.height = size.h * Config.CANVAS_SCALE + 'px';
     let painter = new Painter(canvas, semiStableRng.cur.restarted(), pixelRatio);
     shown.updateArea(painter.paintableArea());
     shown.paint(painter, stats);
@@ -401,8 +402,8 @@ canvasDiv.addEventListener('dblclick', ev => {
             let r = circ.gateRect(row, col);
             let box = canvas.getBoundingClientRect();
             editClassicalExponent(revision, {
-                left: box.left + window.scrollX + r.x,
-                top: box.top + window.scrollY + r.y,
+                left: box.left + window.scrollX + r.x * Config.CANVAS_SCALE,
+                top: box.top + window.scrollY + r.y * Config.CANVAS_SCALE,
                 width: r.w,
                 height: r.h
             }, col, row, current);
@@ -425,10 +426,10 @@ canvasDiv.addEventListener('dblclick', ev => {
         let box = canvas.getBoundingClientRect();
         let name = String(rec.readName.get(key));
         editReadoutName(revision, {
-            left: box.left + window.scrollX + topRect.x,
-            top: box.top + window.scrollY + topRect.y,
-            width: topRect.w,
-            height: bottomRect.bottom() - topRect.y
+            left: box.left + window.scrollX + topRect.x * Config.CANVAS_SCALE,
+            top: box.top + window.scrollY + topRect.y * Config.CANVAS_SCALE,
+            width: topRect.w * Config.CANVAS_SCALE,
+            height: (bottomRect.bottom() - topRect.y) * Config.CANVAS_SCALE
         }, col, check.readRow, name, () => QndView.toggle(col));
         ev.preventDefault();
         return;

@@ -15,6 +15,7 @@
  */
 
 import {Point} from "../math/Point.js"
+import {Config} from "../Config.js"
 
 const ALLOW_REGRAB_WATCHDOG_TIME_MS = 5000;
 const MOUSE_ID = "mouse!";
@@ -37,8 +38,10 @@ let isMiddleClicking = ev => ev.which === 2;
  * @returns {!Point}
  */
 function eventPosRelativeTo(ev, element) {
+    // In the element's content (it may scroll), in unzoomed canvas units.
     let b = element.getBoundingClientRect();
-    return new Point(ev.clientX - b.left, ev.clientY - b.top);
+    let s = Config.CANVAS_SCALE;
+    return new Point((ev.clientX - b.left + element.scrollLeft) / s, (ev.clientY - b.top + element.scrollTop) / s);
 }
 
 /**
