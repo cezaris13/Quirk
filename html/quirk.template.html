@@ -54,6 +54,8 @@
             html[data-theme=dark] #qnd-info, html[data-theme=dark] #qnd-stats { color: #8a8d93 !important; }
             /* Phones: the circuit scrolls sideways in its own box (zoom with − / +), controls wrap, dialogs fit. */
             @media (max-width: 900px) {
+                /* The page never scrolls sideways: the circuit scrolls inside its own box. */
+                html, body { overflow-x: hidden; }
                 #canvasDiv { overflow-x: auto; overflow-y: hidden; }
             }
             @media (max-width: 700px) {
@@ -61,8 +63,20 @@
                 #qnd-bar { gap: 6px !important; }
                 #qnd-bar select { max-width: 100% !important; flex: 1 1 100%; }
                 #qnd-bar kbd { display: none; }
-                #export-div > div:nth-child(2) { left: 6px !important; right: 6px; top: 6px !important; padding: 10px !important; }
+                /* Dialogs (menu, export, make gate): full width instead of 50px from the left with fixed widths. */
+                #menu-div > div:nth-child(2), #export-div > div:nth-child(2), #gate-forge-div > div:nth-child(2) {
+                    left: 6px !important; right: 6px; top: 6px !important; box-sizing: border-box; }
+                #export-div > div:nth-child(2), #gate-forge-div > div:nth-child(2) { padding: 10px !important; overflow-x: auto; }
                 #export-div pre, #export-div div { max-width: 100% !important; }
+                /* Menu: welcome panel and examples stacked, full width; the three links share one row. */
+                #menu-div > div:nth-child(2) > div { display: block !important; margin: 0 0 10px 0 !important;
+                    padding: 14px !important; box-sizing: border-box; }
+                #menu-div > div:nth-child(2) > div:first-child > div:first-child { font-size: 24px !important; }
+                #menu-div > div:nth-child(2) > div:first-child > div { margin-left: 0 !important; margin-right: 0 !important; }
+                #loading-div, #close-menu-button { width: 100% !important; height: 64px !important; }
+                #menu-div > div:nth-child(2) > div:first-child > div[style*="inline-block"] { width: calc(33.3% - 4px);
+                    box-sizing: border-box; padding: 6px 2px !important; font-size: 13px; }
+                #menu-div a > div { width: auto !important; }
             }
             html[data-theme=dark] [style*="background-color:white"], html[data-theme=dark] [style*="background-color: white"],
             html[data-theme=dark] [style*="background-color:#f6f5f1"] { background-color: #232427 !important; color: #dfe1e5; }
