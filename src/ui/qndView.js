@@ -22,6 +22,13 @@
 let compact = true;
 let tabs = true;
 let record = false;
+let blocks = false;
+try {
+    if (localStorage.getItem('quirk-qnd-blocks') === '1') {
+        blocks = true;
+    }
+} catch (_) {
+}
 try {
     if (localStorage.getItem('quirk-qnd-record') === '1') {
         record = true;
@@ -45,6 +52,11 @@ const QndView = {
     /** Columns whose compact/expanded state differs from the global default. */
     toggled: new Set(),
     requestRedraw() {},
+    /** Building block waiting for a click on the circuit to be placed (see QndView.placeBlock). */
+    placing: undefined,
+    placeBlock(col, row) {},
+    /** Picks up a block found in the circuit (see findBlocks), to be put down with placeBlock. */
+    pickUpBlock(found) {},
     get compact() {
         return compact;
     },
@@ -73,6 +85,18 @@ const QndView = {
         tabs = !!v;
         try {
             localStorage.setItem('quirk-qnd-tabs', tabs ? '1' : '0');
+        } catch (_) {
+        }
+        QndView.requestRedraw();
+    },
+    /** Whether recognized building blocks are framed and labelled (and can be grabbed to move them). */
+    get blocks() {
+        return blocks;
+    },
+    set blocks(v) {
+        blocks = !!v;
+        try {
+            localStorage.setItem('quirk-qnd-blocks', blocks ? '1' : '0');
         } catch (_) {
         }
         QndView.requestRedraw();
@@ -183,6 +207,7 @@ function computeRecord(cols, init) {
     let live = [];
     cols.forEach((col, c) => {
         let ctlRows = [];
+        let negRows = new Set();
         let parityRows = [];
         let targets = [];
         let blocked = false;
@@ -193,11 +218,15 @@ function computeRecord(cols, init) {
             }
             if (id === '•') {
                 ctlRows.push(q);
+            } else if (id === '◦' && bitRows.has(q)) {
+                // An anti-control on a bit wire: the condition is that entry being 0.
+                ctlRows.push(q);
+                negRows.add(q);
             } else if (id === 'zpar' && bitRows.has(q)) {
                 // Z-parity controls on bit wires: the correction is conditioned on the XOR of those entries.
                 parityRows.push(q);
-            } else if (id === 'QNDread' || /par$/.test(id) || id === '◦') {
-                blocked = true;
+            } else if (id === 'QNDread' || /par$/.test(id) || id === '◦' || /^reset/.test(id)) {
+                blocked = true;  // (A reset can't be a conditioned correction.)
             } else {
                 targets.push(q);
             }
@@ -208,12 +237,19 @@ function computeRecord(cols, init) {
         } else if (parity) {
             blocked = true;  // Mixed AND / XOR conditions aren't shown as a single classical gate.
         }
+        if (parity && negRows.size > 0) {
+            blocked = true;  // A negated XOR entry has no single classical gate either.
+        }
         if (!blocked &&
                 ctlRows.length &&
                 targets.length &&
                 ctlRows.every(q => bitRows.has(q) && lastRead.has(q)) &&
                 targets.every(q => !bitRows.has(q))) {
-            cond.set(c, {keys: ctlRows.map(q => lastRead.get(q)), ctlRows, targets, parity});
+            let entry = {keys: ctlRows.map(q => lastRead.get(q)), ctlRows, targets, parity};
+            if (negRows.size > 0) {
+                entry.negated = ctlRows.map(q => negRows.has(q));
+            }
+            cond.set(c, entry);
         }
         col.forEach((g, q) => {
             if (idOf(g) === 'QNDread') {
@@ -237,8 +273,13 @@ function computeRecord(cols, init) {
                 a.keys.indexOf(b.keys[0]) < 0 &&
                 String(a.targets) === String(b.targets) &&
                 /^[XYZ](,[XYZ])*$/.test(paulis(c)) && paulis(c) === paulis(head)) {
-            cond.set(head, {keys: a.keys.concat(b.keys), ctlRows: a.ctlRows.concat(b.ctlRows), targets: a.targets,
-                parity: true, merged: (a.merged || []).concat([c])});
+            let merged = {keys: a.keys.concat(b.keys), ctlRows: a.ctlRows.concat(b.ctlRows), targets: a.targets,
+                parity: true, merged: (a.merged || []).concat([c])};
+            // A negated single entry stays negated in the XOR: Z^(1⊕a)·Z^b = Z^(1⊕a⊕b).
+            if (a.negated || b.negated) {
+                merged.negated = (a.negated || a.keys.map(() => false)).concat(b.negated || [false]);
+            }
+            cond.set(head, merged);
             mergedInto.set(c, head);
         }
     }
@@ -288,6 +329,18 @@ function parseRecArg(arg) {
     }
     let m = String(arg).replace(/[₀-₉]/g, ch => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(ch))).match(/\d+/g);
     return m ? m.map(Number) : undefined;
+}
+
+/**
+ * @param {*} arg e.g. "¬2", "¬0*3" (also with ! or ~).
+ * @returns {!Array.<!boolean>} For each entry parseRecArg gives, whether it's negated (the condition is c = 0).
+ */
+function recNegated(arg) {
+    if (arg === undefined || arg === null) {
+        return [];
+    }
+    let m = String(arg).replace(/[₀-₉]/g, ch => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(ch))).match(/[!¬~]?\s*\d+/g);
+    return m ? m.map(t => /^[!¬~]/.test(t)) : [];
 }
 
 /**
@@ -349,9 +402,10 @@ function resolveClassical(circuitJson) {
                 continue;
             }
             let and = recOp(condArg(g)) === 'and';
-            let key = ks.join(',') + (and ? '&' : '^');
+            let neg = recNegated(condArg(g));
+            let key = ks.map((k, i) => (neg[i] ? '¬' : '') + k).join(',') + (and ? '&' : '^');
             if (!groups.has(key)) {
-                groups.set(key, {bits: sources.map(e => e[0]), and, targets: []});
+                groups.set(key, {bits: sources.map(e => e[0]), and, neg, targets: []});
             }
             groups.get(key).targets.push([q, idOf(g)[0]]);
         }
@@ -359,12 +413,23 @@ function resolveClassical(circuitJson) {
         if (conds.length === 0 || base.some(g => g !== 1 && g !== undefined && g !== null)) {
             out.push(base);
         }
-        for (let {bits, and, targets} of groups.values()) {
+        for (let {bits, and, neg, targets} of groups.values()) {
             // One entry: a plain control. Several: Z-parity controls, so the column applies the XOR c_i⊕c_j⊕...
             let entries = [];
-            for (let b of bits) {
-                // AND: plain controls. XOR: Z-parity controls (the column applies on odd parity).
-                entries.push([b, bits.length === 1 || and ? '•' : 'zpar']);
+            bits.forEach((b, i) => {
+                // AND: plain controls (anti-controls for negated entries). XOR: Z-parity controls (odd parity).
+                entries.push([b, bits.length === 1 || and ? (neg[i] ? '◦' : '•') : 'zpar']);
+            });
+            // XOR with negated entries: ¬a⊕b = 1⊕a⊕b, so an odd number of them adds the Pauli unconditionally.
+            if (bits.length > 1 && !and && neg.filter(v => v).length % 2 === 1) {
+                let pauliCol = [];
+                for (let [q, g] of targets) {
+                    while (pauliCol.length <= q) {
+                        pauliCol.push(1);
+                    }
+                    pauliCol[q] = g;
+                }
+                out.push(pauliCol);
             }
             let newCol = [];
             for (let [q, g] of entries.concat(targets)) {
@@ -438,5 +503,5 @@ function circuitResources(circuitJson) {
     return r;
 }
 
-export {QndView, qndCheckInColumn, computeRecord, recordBitRows, RECORD_WIRE_GATES, parseRecArg, recOp, resolveClassical,
-    COND_RE, DISPLAY, circuitResources}
+export {QndView, qndCheckInColumn, computeRecord, recordBitRows, RECORD_WIRE_GATES, parseRecArg, recNegated, recOp,
+    resolveClassical, COND_RE, DISPLAY, circuitResources}

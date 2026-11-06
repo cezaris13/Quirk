@@ -13,8 +13,10 @@
  */
 
 import {Suite, assertThat} from "../TestUtil.js"
-import {computeRecord, resolveClassical, circuitResources} from "../../src/ui/qndView.js"
+import {computeRecord, resolveClassical, circuitResources, recNegated} from "../../src/ui/qndView.js"
 import {QND_EXAMPLES} from "../../src/ui/qndExamples.js"
+import {Serializer} from "../../src/circuit/Serializer.js"
+import {CircuitDefinition} from "../../src/circuit/CircuitDefinition.js"
 
 let suite = new Suite("qndView");
 
@@ -56,4 +58,34 @@ suite.test("resource counts: BP-CNOT gate form vs QND form", () => {
         {qubits: 3, bits: 0, readouts: 0, maxWeight: 0, twoQubit: 1, swaps: 1, corrections: 0, resets: 0, depth: 2});
     assertThat(circuitResources(ex.qnd)).isEqualTo(
         {qubits: 3, bits: 2, readouts: 2, maxWeight: 3, twoQubit: 0, swaps: 0, corrections: 3, resets: 1, depth: 6});
+});
+
+suite.test("an anti-control on a bit wire is a negated condition, and ¬ in X^c resolves to one", () => {
+    let rec = computeRecord(withReads(['X', 1, 1, 1, '◦']), [0, '+']);
+    assertThat([rec.cond.get(2).keys, rec.cond.get(2).negated]).isEqualTo([[0], [true]]);
+    assertThat(recNegated('¬0*1')).isEqualTo([true, false]);
+    let c = arg => ({cols: withReads([{id: 'X^c', arg}]), init: [0, '+']});
+    assertThat(resolveClassical(c('¬0')).cols.slice(2)).isEqualTo([['X', 1, 1, 1, '◦']]);
+    assertThat(resolveClassical(c('¬0*1')).cols.slice(2)).isEqualTo([['X', 1, 1, 1, '◦', '•']]);
+    // ¬c₀⊕c₁ = 1⊕c₀⊕c₁: the Pauli, then the Z-parity-controlled one.
+    assertThat(resolveClassical(c('¬0+1')).cols.slice(2)).isEqualTo([['X'], ['X', 1, 1, 1, 'zpar', 'zpar']]);
+    assertThat(resolveClassical(c('¬0+¬1')).cols.slice(2)).isEqualTo([['X', 1, 1, 1, 'zpar', 'zpar']]);
+});
+
+suite.test("adjacent corrections with an anti-control show as one XOR gate, keeping the negation", () => {
+    let two = computeRecord(withReads(['Z', 1, 1, 1, 1, '◦'], ['Z', 1, 1, 1, '•']), [0, '+']);
+    let head = two.cond.get(2);
+    assertThat([head.keys, head.negated, two.mergedInto.get(3)]).isEqualTo([[1, 0], [true, false], 2]);
+});
+
+suite.test("a reset in a column with a record-bit control isn't shown as a conditioned correction", () => {
+    let rec = computeRecord(withReads(['Z', 'reset+', 1, 1, '•']), [0, '+']);
+    assertThat(rec.cond.has(2)).isEqualTo(false);
+});
+
+suite.test("a reset can't be controlled, by a qubit or a record bit", () => {
+    let reason = cols => Serializer.fromJson(CircuitDefinition, {cols}).gateAtLocIsDisabledReason(cols.length - 1, 1);
+    assertThat(reason([['•', 'reset+']])).isEqualTo("can't\ncontrol\nreset");
+    assertThat(reason([['zpar', 1, 'QNDread'], [1, 'reset0', '•']])).isEqualTo("can't\ncontrol\nreset");
+    assertThat(reason([['H', 'reset+']])).isEqualTo(undefined);
 });

@@ -14,8 +14,10 @@
 
 import {Config} from "../Config.js"
 import {QND_EXAMPLES} from "./qndExamples.js"
+import {QND_BLOCKS, compileToQnd, decompileToGate, insertBlockAt, moveBlock} from "./qndBlocks.js"
 import {closeMenu} from "./menu.js"
-import {QndView, computeRecord, parseRecArg, recOp, resolveClassical, COND_RE, circuitResources} from "./qndView.js"
+import {QndView, computeRecord, parseRecArg, recNegated, recOp, resolveClassical, COND_RE, circuitResources}
+    from "./qndView.js"
 
 function initTheme() {
     let button = document.getElementById('theme-button');
@@ -73,6 +75,37 @@ function showWithArxivLinks(element, text) {
         link.textContent = part;
         element.appendChild(link);
     }
+}
+
+/**
+ * @param {!{cols: !Array, init: (undefined|!Array)}} circuit Circuit JSON.
+ * @param {!int} count At least how many wires to return (missing ones are empty).
+ * @returns {!Array.<!{init: *, gates: !Array}>} The circuit split into its wires.
+ */
+function wiresOf(circuit, count) {
+    let init = circuit.init || [];
+    let n = Math.max(count, init.length, ...circuit.cols.map(col => col.length));
+    let wires = [];
+    for (let row = 0; row < n; row++) {
+        wires.push({
+            init: init[row] === undefined ? 0 : init[row],
+            gates: circuit.cols.map(col => col[row] === undefined || col[row] === null ? 1 : col[row])
+        });
+    }
+    return wires;
+}
+
+/**
+ * @param {!Array.<!{init: *, gates: !Array}>} wires
+ * @returns {!{cols: !Array, init: !Array}} Circuit JSON built from the wires.
+ */
+function circuitOf(wires) {
+    let colCount = Math.max(0, ...wires.map(w => w.gates.length));
+    let cols = [];
+    for (let c = 0; c < colCount; c++) {
+        cols.push(wires.map(w => w.gates[c] === undefined ? 1 : w.gates[c]));
+    }
+    return {cols, init: wires.map(w => w.init)};
 }
 
 /**
@@ -138,6 +171,14 @@ function initQnd(revision) {
         });
     }
 
+    let blocksBox = document.getElementById('qnd-blocks');
+    if (blocksBox) {
+        blocksBox.checked = QndView.blocks;
+        blocksBox.addEventListener('change', () => {
+            QndView.blocks = blocksBox.checked;
+        });
+    }
+
     let tabsBox = document.getElementById('qnd-tabs');
     if (tabsBox) {
         tabsBox.checked = QndView.tabs;
@@ -146,7 +187,7 @@ function initQnd(revision) {
         });
     }
 
-    // Keyboard shortcuts: P (paper-style checks), I (input tabs), C (classical record).
+    // Keyboard shortcuts: P (paper-style checks), I (input tabs), C (classical record), B (building blocks).
     document.addEventListener('keydown', e => {
         let t = e.target;
         let typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
@@ -168,6 +209,11 @@ function initQnd(revision) {
             QndView.record = !QndView.record;
             if (recordBox) {
                 recordBox.checked = QndView.record;
+            }
+        } else if (key === 'b') {
+            QndView.blocks = !QndView.blocks;
+            if (blocksBox) {
+                blocksBox.checked = QndView.blocks;
             }
         } else {
             return;
@@ -218,8 +264,12 @@ function initQnd(revision) {
     select.appendChild(paperGroup);
     select.appendChild(advancedGroup);
 
+    // Your own circuit (or an edited example): Q compiles its building blocks; Q again restores what you had.
+    let compiled = undefined;
+    let compileMode = () => current === NONE || wireOrder() === undefined;
+
     let statsLine = document.getElementById('qnd-stats');
-    // Resources of the circuit on screen; for a loaded example, next to those of its other stored form.
+    // Resources of the circuit on screen, next to those of its other form (compiled / decompiled, or the stored one).
     let showStats = () => {
         let shown;
         try {
@@ -232,10 +282,14 @@ function initQnd(revision) {
             statsLine.textContent = '';
             return;
         }
-        let hasReadout = (shown.cols || []).some(col => col.some(g => (g && g.id || g) === 'QNDread'));
-        let isQnd = current === NONE ? hasReadout : view === 'qnd';
+        let ex = current === NONE ? undefined : exampleAt(current);
+        let stored = ex !== undefined && !compileMode();
+        let isQnd = stored ? view === 'qnd' : compileToQnd(shown) === undefined && decompileToGate(shown) !== undefined;
+        let other = isQnd ? decompileToGate(shown) : compileToQnd(shown);
+        if (other === undefined && stored) {
+            other = ex[isQnd ? 'gate' : 'qnd'];
+        }
         let line = `${isQnd ? 'QND' : 'Gate'} form: ${resourceLine(shown)}`;
-        let other = current === NONE ? undefined : exampleAt(current)[isQnd ? 'gate' : 'qnd'];
         if (other !== undefined) {
             line += `   vs   ${isQnd ? 'gate' : 'QND'} form: ${resourceLine(other)}`;
         }
@@ -246,6 +300,20 @@ function initQnd(revision) {
         showStats();
         viewBox.checked = view === 'qnd';
         viewBox.disabled = true;
+        if (compileMode()) {
+            let shown = revision.peekActiveCommit();
+            let isCompiled = compiled !== undefined && compiled.qnd === shown;
+            let canCompile = false;
+            let canDecompile = false;
+            try {
+                canCompile = compileToQnd(JSON.parse(shown)) !== undefined;
+                canDecompile = decompileToGate(JSON.parse(shown)) !== undefined;
+            } catch (_) {
+                // Unparsable circuit: nothing to switch.
+            }
+            viewBox.checked = isCompiled || (canDecompile && !canCompile);
+            viewBox.disabled = !isCompiled && !canCompile && !canDecompile;
+        }
         if (current === NONE) {
             info.textContent = 'Pick a paper circuit, then switch views. ' +
                 'New gates are in the toolbox group "QND (biased noise)": ' +
@@ -253,7 +321,9 @@ function initQnd(revision) {
             return;
         }
         let ex = exampleAt(current);
-        viewBox.disabled = !ex.gate || !ex.qnd;
+        if (!compileMode()) {
+            viewBox.disabled = !ex.gate || !ex.qnd;
+        }
         let wires = ex.labels[view].map((label, i) => i + ':' + label).join('  ');
         let edited = loadedCommit !== undefined && revision.peekActiveCommit() !== loadedCommit ? '  (edited)' : '';
         showWithArxivLinks(info, ex.ref + edited + '. Wires: ' + wires + '. ' + (view === 'qnd'
@@ -261,7 +331,34 @@ function initQnd(revision) {
             : 'Ideal Pauli measurements with relocation swaps, as on the left-hand side of Fig. 2.'));
     };
 
-    let load = () => {
+    // Which stored wire each wire on screen is, when the user only moved wires around (else undefined).
+    let wireOrder = () => {
+        let ex = current === NONE ? undefined : exampleAt(current);
+        if (ex === undefined || !ex[view]) {
+            return undefined;
+        }
+        let shownWires;
+        try {
+            shownWires = wiresOf(JSON.parse(revision.peekActiveCommit()), 0);
+        } catch (_) {
+            return undefined;
+        }
+        let key = w => JSON.stringify(w);
+        let storedWires = wiresOf(ex[view], shownWires.length).map(key);
+        let used = new Set();
+        let order = [];
+        for (let w of shownWires) {
+            let i = storedWires.findIndex((k, j) => !used.has(j) && k === key(w));
+            if (i < 0) {
+                return undefined;
+            }
+            used.add(i);
+            order.push(i);
+        }
+        return order;
+    };
+
+    let load = (order = undefined, orderedView = undefined) => {
         if (current === NONE) {
             refresh();
             return;
@@ -270,19 +367,138 @@ function initQnd(revision) {
         if (!ex[view]) {
             view = ex.qnd ? 'qnd' : 'gate';
         }
-        let text = JSON.stringify(ex[view]);
+        let circuit = ex[view];
+        if (order !== undefined) {
+            // Wire i is the same wire in both versions; wires only one version has are left out / appended.
+            let shared = Math.min(wiresOf(ex[orderedView], 0).length, wiresOf(circuit, 0).length);
+            let source = wiresOf(circuit, 0);
+            let empty = {init: 0, gates: []};
+            let wires = order.map(i => i < shared ? source[i] : empty);
+            while (wires.length > 0 && wires[wires.length - 1] === empty) {
+                wires.pop();
+            }
+            wires.push(...source.slice(shared));
+            if (wires.length <= Config.MAX_ROW_COUNT) {
+                circuit = circuitOf(wires);
+            }
+        }
+        let text = JSON.stringify(circuit);
         revision.commit(text);
         loadedCommit = revision.peekActiveCommit();
         refresh();
     };
+
+    let blockSelect = document.getElementById('qnd-block');
+    if (blockSelect) {
+        let blockPlaceholder = document.createElement('option');
+        blockPlaceholder.value = '-1';
+        blockPlaceholder.textContent = 'Insert building block…';
+        blockSelect.appendChild(blockPlaceholder);
+        QND_BLOCKS.forEach((block, i) => {
+            if (block.hidden) {
+                return;
+            }
+            let opt = document.createElement('option');
+            opt.value = String(i);
+            opt.textContent = block.name;
+            blockSelect.appendChild(opt);
+        });
+        let stopPlacing = message => {
+            QndView.placing = undefined;
+            blockSelect.value = '-1';
+            refresh();
+            if (message !== undefined) {
+                info.textContent = message;
+            }
+            QndView.requestRedraw();
+        };
+        blockSelect.addEventListener('change', () => {
+            let block = QND_BLOCKS[parseInt(blockSelect.value, 10)];
+            if (block === undefined) {
+                stopPlacing();
+                return;
+            }
+            QndView.placing = block;
+            info.textContent = `Click on the circuit where the first wire of ${block.name} should go ` +
+                '(it is inserted before the column you click). Esc cancels.';
+            blockSelect.blur();
+            QndView.requestRedraw();
+        });
+        QndView.pickUpBlock = found => {
+            // Nothing changes until it's put down: the block stays highlighted, a marker follows the mouse.
+            QndView.placing = Object.assign({}, found.block, {moving: found});
+            info.textContent = `Moving ${found.block.name}: click where its top wire should go (it goes before ` +
+                'the column you click, and keeps its shape). Esc cancels.';
+            QndView.requestRedraw();
+        };
+        // Placed in gate form; press Q to compile it.
+        QndView.placeBlock = (col, row) => {
+            let block = QndView.placing;
+            let shown;
+            try {
+                shown = JSON.parse(revision.peekActiveCommit());
+            } catch (_) {
+                stopPlacing();
+                return;
+            }
+            if (block.moving !== undefined) {
+                let moved = moveBlock(shown, block.moving, col, row);
+                if (moved.circuit !== undefined) {
+                    revision.commit(JSON.stringify(moved.circuit));
+                }
+                let wires = ws => ws.length === 1 ? `wire ${ws[0]}` : `wires ${ws.join(', ')}`;
+                let note = moved.reset && moved.reset.length ?
+                    `Added a |+⟩ reset on ${wires(moved.reset)} for ${block.name}'s ancilla. ` : '';
+                stopPlacing(moved.error !== undefined ? moved.error : moved.recognized ? note || undefined :
+                    moved.busy && moved.busy.length ?
+                        note + `${block.name} needs a fresh |+⟩ ancilla on ${wires(moved.busy)}, but it's used after ` +
+                            'the block, so it was moved without being a block. Put it where that wire is free.' :
+                        note + `Moved, but ${block.name}'s ancilla wires there aren't a fresh |+⟩, so it's no ` +
+                            'longer that block.');
+                return;
+            }
+            let {circuit, error} = insertBlockAt(shown, block, col, row);
+            if (circuit !== undefined) {
+                revision.commit(JSON.stringify(circuit));
+            }
+            stopPlacing(error);
+        };
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && QndView.placing !== undefined) {
+                stopPlacing();
+            }
+        });
+    }
 
     select.addEventListener('change', () => {
         current = parseInt(select.value, 10);
         load();
     });
     viewBox.addEventListener('change', () => {
+        if (compileMode()) {
+            // The whole circuit goes to the chosen view, including sections that were already in the other one.
+            let shown = revision.peekActiveCommit();
+            if (viewBox.checked) {
+                let qnd = compileToQnd(JSON.parse(shown));
+                if (qnd !== undefined) {
+                    revision.commit(JSON.stringify(qnd));
+                    compiled = {gate: shown, qnd: revision.peekActiveCommit()};
+                }
+            } else {
+                // Unchanged since compiling: start from what you had (keeps your wire layout), then convert the rest.
+                let base = compiled !== undefined && compiled.qnd === shown ? compiled.gate : shown;
+                let gate = decompileToGate(JSON.parse(base));
+                revision.commit(gate !== undefined ? JSON.stringify(gate) : base);
+                compiled = undefined;
+            }
+            refresh();
+            return;
+        }
+        // Keep wires the user moved up or down in the same place in the other version too.
+        let order = wireOrder();
+        let previousView = view;
         view = viewBox.checked ? 'qnd' : 'gate';
-        load();
+        load(order, previousView);
     });
     // Q: switch the loaded paper circuit between its gate and QND versions.
     document.addEventListener('keydown', e => {
@@ -444,7 +660,8 @@ function applyClassicalArg(revision, col, row, text) {
     if (entries === undefined) {
         return;
     }
-    let arg = entries.join(recOp(text) === 'and' ? '*' : '+');
+    let negated = recNegated(text);
+    let arg = entries.map((k, i) => (negated[i] ? '¬' : '') + k).join(recOp(text) === 'and' ? '*' : '+');
     let circuit;
     try {
         circuit = JSON.parse(revision.peekActiveCommit());

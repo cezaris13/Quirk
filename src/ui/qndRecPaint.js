@@ -32,13 +32,17 @@ const LABEL_FONT = Config.DEFAULT_FONT_FAMILY;
  * @param {!string=} joiner
  * @returns {!number}
  */
-function measureRecExpr(ctx, indices, size, joiner = "⊕") {
+function measureRecExpr(ctx, indices, size, joiner = "⊕", negated = []) {
     if (indices === undefined) {
         ctx.font = `italic ${size}px ${Config.MATH_FONT_FAMILY}`;
         return ctx.measureText("c").width;
     }
     let w = 0;
     indices.forEach((k, i) => {
+        if (negated[i]) {
+            ctx.font = `${size}px ${Config.MATH_FONT_FAMILY}`;
+            w += ctx.measureText("¬").width;
+        }
         ctx.font = `italic ${size}px ${Config.MATH_FONT_FAMILY}`;
         w += ctx.measureText("c").width;
         ctx.font = `${Math.round(size * 0.72)}px ${Config.MATH_FONT_FAMILY}`;
@@ -61,7 +65,7 @@ function measureRecExpr(ctx, indices, size, joiner = "⊕") {
  * @param {!string=} joiner
  * @returns {!number}
  */
-function fillRecExpr(ctx, indices, x, y, size, joiner = "⊕") {
+function fillRecExpr(ctx, indices, x, y, size, joiner = "⊕", negated = []) {
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     if (indices === undefined) {
@@ -70,6 +74,11 @@ function fillRecExpr(ctx, indices, x, y, size, joiner = "⊕") {
         return x + ctx.measureText("c").width;
     }
     indices.forEach((k, i) => {
+        if (negated[i]) {
+            ctx.font = `${size}px ${Config.MATH_FONT_FAMILY}`;
+            ctx.fillText("¬", x, y);
+            x += ctx.measureText("¬").width;
+        }
         ctx.font = `italic ${size}px ${Config.MATH_FONT_FAMILY}`;
         ctx.fillText("c", x, y);
         x += ctx.measureText("c").width;
@@ -122,7 +131,7 @@ function paintClassicalGate(ctx, rect, label, indices, opts = {}) {
     while (true) {
         ctx.font = `${size}px ${LABEL_FONT}`;
         let labelWidth = ctx.measureText(label).width;
-        let exprWidth = measureRecExpr(ctx, indices, sub, joiner);
+        let exprWidth = measureRecExpr(ctx, indices, sub, joiner, opts.negated);
         if (labelWidth + exprWidth + 6 <= rect.w || sub <= 7) {
             let x = rect.center().x - (labelWidth + exprWidth + 1) / 2;
             let y = rect.center().y + size * 0.36;
@@ -132,7 +141,7 @@ function paintClassicalGate(ctx, rect, label, indices, opts = {}) {
             ctx.font = `${size}px ${LABEL_FONT}`;
             ctx.fillText(label, x, y);
             ctx.fillStyle = opts.bad ? Config.RECORD_BAD_COLOR : Config.RECORD_COLOR;
-            fillRecExpr(ctx, indices, x + labelWidth + 1, y - size * 0.5, sub, joiner);
+            fillRecExpr(ctx, indices, x + labelWidth + 1, y - size * 0.5, sub, joiner, opts.negated);
             break;
         }
         --size;

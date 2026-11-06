@@ -32,7 +32,7 @@ suite.test("BP-CNOT QND form: MPP readouts and rec feedback", () => {
         'CZ rec[-1] 0', 'TICK',
         'CZ rec[-1] 2', 'TICK',
         'CX rec[-2] 2', 'TICK',
-        'R 1'
+        'RX 1'
     ]);
 });
 
@@ -52,6 +52,11 @@ suite.test("measurements and corrections are labelled with their record entries"
 
 suite.test("an anti-control on a record bit becomes the Pauli plus its feedback", () => {
     let c = {cols: [['zpar', 1, 'QNDread'], [1, 'X', '◦']], init: []};
+    assertThat(body(c)).isEqualTo(['M 0', 'TICK', 'X 1', 'CX rec[-1] 1']);
+});
+
+suite.test("a negated X^c argument exports like an anti-control", () => {
+    let c = {cols: [['zpar', 1, 'QNDread'], [1, {id: 'X^c', arg: '¬0'}]], init: []};
     assertThat(body(c)).isEqualTo(['M 0', 'TICK', 'X 1', 'CX rec[-1] 1']);
 });
 
@@ -110,3 +115,4 @@ suite.test("an AND of record bits is left out, with the reason", () => {
     assertThat(r.problems[0].indexOf('XOR of measurement results') >= 0).isEqualTo(true);
     assertThat(body(c)).isEqualTo(['M 0', 'TICK', 'M 1']);
 });
+

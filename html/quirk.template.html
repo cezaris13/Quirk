@@ -96,10 +96,12 @@
             <div id="qnd-bar" style="margin: 0 5px 5px; padding: 6px 10px; border: 1px solid #cfe9df; background: #f3fbf8; border-radius: 6px; font: 13px sans-serif; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
                 <b style="color:#22252b; font-weight: 600;">QND · biased-noise papers</b>
                 <select id="qnd-example" style="min-height: 28px; max-width: 360px;"></select>
+                <select id="qnd-block" style="min-height: 28px;" title="Add a bias-preserving building block (gate form) on new wires; Q compiles it to its QND form"></select>
                 <label class="qnd-opt" title="Switch the loaded paper circuit between its gate version and its QND version (shortcut: Q)"><input id="qnd-view" type="checkbox"> QND view <kbd>Q</kbd></label>
                 <label class="qnd-opt" title="Draw QND parity checks as one M_{Z⊗k} box like the papers (shortcut: P). Double-click a check to expand or collapse just that one."><input id="qnd-compact" type="checkbox"> paper-style checks <kbd>P</kbd></label>
                 <label class="qnd-opt" title="Coloured Z/X tabs marking the measured wires of a paper-style check (shortcut: I)"><input id="qnd-tabs" type="checkbox"> input tabs <kbd>I</kbd></label>
                 <label class="qnd-opt" title="Show readout outcomes as a classical record c₀, c₁, … (like Stim's rec) and corrections as X^{cₖ} instead of controlled gates from bit-wire qubits (shortcut: C)"><input id="qnd-record" type="checkbox"> classical record <kbd>C</kbd></label>
+                <label class="qnd-opt" title="Frame and label the building blocks found in the circuit; drag a label to move its block (shortcut: B)"><input id="qnd-blocks" type="checkbox"> blocks <kbd>B</kbd></label>
                 <span id="qnd-info" style="color:#6b6f76; flex-basis: 100%; font-size: 12px;"></span>
                 <span id="qnd-stats" style="color:#6b6f76; flex-basis: 100%; font-size: 12px;" title="Counted from the circuit: qubit wires used, classical record bits, readouts (and the largest parity weight), qubit-controlled gates and swaps, Pauli corrections conditioned on record bits, resets, and depth in columns"></span>
             </div>

@@ -18,7 +18,9 @@ import {CachablePainting} from "../draw/CachablePainting.js"
 import {CircuitDefinition} from "../circuit/CircuitDefinition.js"
 import {CircuitStats} from "../circuit/CircuitStats.js"
 import {Config} from "../Config.js"
-import {QndView, qndCheckInColumn, computeRecord, parseRecArg} from "./qndView.js"
+import {QndView, qndCheckInColumn, computeRecord, parseRecArg, recNegated, recOp} from "./qndView.js"
+import {findBlocks} from "./qndBlocks.js"
+import {Serializer} from "../circuit/Serializer.js"
 import {measureRecExpr, fillRecExpr, paintClassicalGate} from "./qndRecPaint.js"
 import {DetailedError} from "../base/DetailedError.js"
 import {equate} from "../base/Equate.js"
@@ -622,7 +624,8 @@ class DisplayedCircuit {
      * @returns {!DisplayedCircuit}
      */
     afterTidyingUp() {
-        let def = this._spareAt === undefined ? this.circuitDefinition : this._defInDrawnOrder();
+        let def = this._emptyWiresAboveRecordDropped(
+            this._spareAt === undefined ? this.circuitDefinition : this._defInDrawnOrder());
         return this.
             withCircuit(def.
                 withUncoveredColumnsRemoved().
@@ -670,6 +673,7 @@ class DisplayedCircuit {
 
         this._drawRecordLabels(painter);
         if (!forTooltip) {
+            this._drawBlockFrames(painter, hand);
             this._drawOutputDisplays(painter, stats, hand);
             this._drawHintLabels(painter, stats);
         }
@@ -827,6 +831,100 @@ class DisplayedCircuit {
     }
 
     /**
+     * The building blocks found in the circuit, with a frame around each and a label chip to grab it by.
+     * @returns {!Array.<!{found: !Object, frame: !Rect, chip: !Rect, text: !string}>}
+     */
+    blockFrames() {
+        let moving = QndView.placing !== undefined ? QndView.placing.moving : undefined;
+        if (!QndView.blocks && moving === undefined) {
+            return [];
+        }
+        let def = this.circuitDefinition;
+        let cache = DisplayedCircuit._blockCache;
+        if (cache === undefined || cache.def !== def) {
+            let found = [];
+            try {
+                found = findBlocks(Serializer.toJson(def));
+            } catch (_) {
+                // Not a circuit the block matcher understands; no frames.
+            }
+            cache = DisplayedCircuit._blockCache = {def, found};
+        }
+        return cache.found.map(f => {
+            let a = this.gateRect(f.rows[0], f.col);
+            let b = this.gateRect(f.rows[f.rows.length - 1], f.col + f.len - 1);
+            let frame = new Rect(a.x - 5, a.y - 5, b.right() - a.x + 10, b.bottom() - a.y + 10);
+            let text = '⠿ ' + f.block.name + (f.form === 'qnd' ? ' · QND' : '');
+            return {found: f, frame, text};
+        });
+    }
+
+    /**
+     * @param {!Point} pt
+     * @returns {undefined|!Object} The found block whose label chip is at pt.
+     */
+    blockLabelAt(pt) {
+        let hit = this.blockFrames().find(e => this._chipRect(e).containsPoint(pt));
+        return hit === undefined ? undefined : hit.found;
+    }
+
+    /** The label chip: above the frame, or below it when the frame starts on the top wire. */
+    _chipRect(e) {
+        let y = e.frame.y - 14 < this.top ? e.frame.bottom() + 1 : e.frame.y - 14;
+        return new Rect(e.frame.x, y, 8 + 6 * e.text.length, 13);
+    }
+
+    /**
+     * @param {!Painter} painter
+     * @private
+     */
+    _drawBlockFrames(painter, hand) {
+        let ctx = painter.ctx;
+        let moving = QndView.placing !== undefined ? QndView.placing.moving : undefined;
+        let isMoving = e => moving !== undefined && e.found.col === moving.col && e.found.block === moving.block;
+        for (let e of this.blockFrames()) {
+            ctx.save();
+            ctx.setLineDash(isMoving(e) ? [] : [3, 3]);
+            painter.strokeRect(e.frame, isMoving(e) ? Config.GATE_HIGHLIGHT_OUTLINE_COLOR : Config.MUTED_TEXT_COLOR,
+                isMoving(e) ? 2 : 1);
+            ctx.restore();
+            let chip = this._chipRect(e);
+            ctx.save();
+            ctx.font = '10px ' + Config.DEFAULT_FONT_FAMILY;
+            painter.fillRect(chip, Config.BACKGROUND_COLOR_CIRCUIT);
+            painter.strokeRect(chip, Config.MUTED_TEXT_COLOR, 1);
+            ctx.fillStyle = Config.MUTED_TEXT_COLOR;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(e.text, chip.x + 4, chip.center().y);
+            ctx.restore();
+            painter.noteTouchBlocker({rect: chip, cursor: 'grab'});
+        }
+        if (moving !== undefined && hand.pos !== undefined) {
+            this._drawBlockDropMarker(painter, hand.pos, moving);
+        }
+    }
+
+    /**
+     * Where a moved block would land: a bar before the column under the mouse, over the wires it would take.
+     * @private
+     */
+    _drawBlockDropMarker(painter, pos, moving) {
+        if (pos.y < this.top || pos.y > this.top + this.desiredHeight()) {
+            return;
+        }
+        let n = this.circuitDefinition.columns.length;
+        let col = this.indexOfDisplayedColumnAt(pos.x, pos.y);
+        if (col === undefined) {
+            col = this.toColumnSpaceCoordinate(pos.x) < 0 ? 0 : n;
+        }
+        let dRow = Math.max(0, this.wireIndexAt(pos.y)) - moving.rows[0];
+        let top = this.gateRect(moving.rows[0] + dRow, col);
+        let bottom = this.gateRect(moving.rows[moving.rows.length - 1] + dRow, col);
+        let bar = new Rect(top.x - 6, top.y - 4, 4, bottom.bottom() - top.y + 8);
+        painter.fillRect(bar, Config.GATE_HIGHLIGHT_OUTLINE_COLOR);
+    }
+
+    /**
      * @param {!Painter} painter
      * @param {!int} col
      * @param {!int} row
@@ -909,7 +1007,8 @@ class DisplayedCircuit {
                         gate,
                         cond.keys,
                         cond.parity === true,
-                        this._highlightStatusAt(col, row, hand.hoverPoints()).isHighlighted);
+                        this._highlightStatusAt(col, row, hand.hoverPoints()).isHighlighted,
+                        cond.negated);
                     painter.noteTouchBlocker({rect: gateRect, cursor: 'pointer'});
                     continue;
                 }
@@ -928,7 +1027,8 @@ class DisplayedCircuit {
                     gateRect,
                     gate.serializedId[0],
                     keys,
-                    {highlighted: isHighlighted, bad: !isSatisfied});
+                    {highlighted: isHighlighted, bad: !isSatisfied, negated: recNegated(gate.param),
+                        joiner: recOp(gate.param) === 'and' ? '·' : '⊕'});
                 painter.noteTouchBlocker({rect: gateRect, cursor: 'pointer'});
                 continue;
             }
@@ -1019,10 +1119,11 @@ class DisplayedCircuit {
      * @param {!boolean=} isHighlighted
      * @private
      */
-    _drawConditionalGate(painter, rect, gate, keys, parity, isHighlighted=false) {
+    _drawConditionalGate(painter, rect, gate, keys, parity, isHighlighted=false, negated=[]) {
         paintClassicalGate(painter.ctx, rect, gate.serializedId, keys, {
             joiner: parity ? '⊕' : '·',
-            highlighted: isHighlighted
+            highlighted: isHighlighted,
+            negated
         });
     }
 
@@ -1075,6 +1176,9 @@ class DisplayedCircuit {
             }
             let y = Math.round(this.wireRect(row).center().y - 0.5) + 0.5;
             ctx.save();
+            if (spare.indexOf(row) >= 0) {
+                ctx.globalAlpha *= 0.5;
+            }
             ctx.fillStyle = Config.BACKGROUND_COLOR_CIRCUIT;
             ctx.fillRect(0, y - 4, painter.width, 8);
             ctx.fillRect(0, y - 12, 24, 24);  // Covers the |0⟩ label, also under a faded spare wire.
@@ -1528,12 +1632,49 @@ class DisplayedCircuit {
                 order.push(r);
             }
         }
+        return DisplayedCircuit._withRowOrder(def, order);
+    }
+
+    /**
+     * @param {!CircuitDefinition} def
+     * @param {!Array.<!int>} order Old row of each new row.
+     * @returns {!CircuitDefinition}
+     * @private
+     */
+    static _withRowOrder(def, order) {
         let cols = def.columns.map(col => new GateColumn(order.map(r => col.gates[r])));
         let init = new Map();
         for (let [k, v] of def.customInitialValues.entries()) {
             init.set(order.indexOf(k), v);
         }
         return def.withColumns(cols).withInitialStates(init);
+    }
+
+    /**
+     * Empty qubit wires just above the record wires go to the bottom, where tidying trims them: a qubit losing its
+     * last gate doesn't leave a gap above the classical register.
+     * @param {!CircuitDefinition} def
+     * @returns {!CircuitDefinition}
+     * @private
+     */
+    _emptyWiresAboveRecordDropped(def) {
+        let bits = this.withCircuit(def)._recordAlways().bitRows;
+        if (bits.size === 0) {
+            return def;
+        }
+        let empty = r => !def.customInitialValues.has(r) &&
+            def.columns.every((_, c) => def.findGateCoveringSlot(c, r) === undefined);
+        let first = Math.min(...bits);
+        let top = first;
+        while (top > 0 && empty(top - 1)) {
+            top--;
+        }
+        if (top === first || top === 0) {
+            return def;  // No gap, or no qubit wire in use above it.
+        }
+        let rows = [...Array(def.numWires).keys()];
+        let order = rows.filter(r => r < top || r >= first).concat(rows.filter(r => r >= top && r < first));
+        return DisplayedCircuit._withRowOrder(def, order);
     }
 
     /**

@@ -17,7 +17,7 @@ import {GateShaders} from "../circuit/GateShaders.js"
 import {Matrix} from "../math/Matrix.js"
 import {Config} from "../Config.js"
 import {GatePainting} from "../draw/GatePainting.js"
-import {parseRecArg, recOp} from "../ui/qndView.js"
+import {parseRecArg, recNegated, recOp} from "../ui/qndView.js"
 import {paintClassicalGate} from "../ui/qndRecPaint.js"
 import {sampleMeasure, detectorStatTexture, withClearedControls, drawClick} from "./Detector.js"
 
@@ -54,6 +54,7 @@ function drawReset(args, label) {
 function drawClassicalGate(args, axis) {
     paintClassicalGate(args.painter.ctx, args.rect, axis, parseRecArg(args.gate.param), {
         joiner: recOp(args.gate.param) === 'and' ? '·' : '⊕',
+        negated: recNegated(args.gate.param),
         highlighted: args.isHighlighted,
         bad: args.positionInCircuit !== undefined,
         shadow: args.isInToolbox
@@ -115,6 +116,9 @@ QndGates.ParityReadout = new GateBuilder().
     setStatPixelDataPostProcessor(pixels => pixels[0] > 0).
     gate.withParam('');
 
+// A reset discards the qubit: there's no controlled version (on a qubit or on a record bit).
+const resetControlReason = args => args.innerColumn.hasControl(args.measuredMask) ? "can't\ncontrol\nreset" : undefined;
+
 QndGates.ResetPlus = new GateBuilder().
     setSerializedIdAndSymbol('reset+').
     setTitle('Reset to |+⟩').
@@ -122,6 +126,7 @@ QndGates.ResetPlus = new GateBuilder().
         'Used to recycle ancillas between rounds.').
     setDrawer(args => drawReset(args, '|+⟩')).
     markAsReachingOtherWires().
+    setExtraDisableReasonFinder(resetControlReason).
     setActualEffectToUpdateFunc(measureThenApply(RESET_TO_PLUS)).
     gate;
 
@@ -131,6 +136,7 @@ QndGates.ResetZero = new GateBuilder().
     setBlurb('Discards the qubit and re-prepares it in |0⟩.').
     setDrawer(args => drawReset(args, '|0⟩')).
     markAsReachingOtherWires().
+    setExtraDisableReasonFinder(resetControlReason).
     setActualEffectToUpdateFunc(measureThenApply(RESET_TO_ZERO)).
     gate;
 

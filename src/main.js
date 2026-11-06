@@ -208,7 +208,7 @@ const redrawNow = () => {
 
     displayed.get().hand.paintCursor(painter);
     scrollBlocker.setBlockers(painter.touchBlockers, painter.desiredCursorStyle);
-    canvas.style.cursor = painter.desiredCursorStyle || 'auto';
+    canvas.style.cursor = QndView.placing !== undefined ? 'crosshair' : painter.desiredCursorStyle || 'auto';
 
     let dt = displayed.get().stableDuration();
     if (dt < Infinity) {
@@ -321,6 +321,46 @@ watchDrags(canvasDiv,
     });
 
 // Double-click a classical correction to pick its record entry, or a QND check to expand/collapse it.
+// While a building block is being placed, a click on the circuit places it instead of grabbing a gate.
+let placeBlockAt = ev => {
+    if (QndView.placing === undefined) {
+        return;
+    }
+    let circ = displayed.get().displayedCircuit;
+    let touch = ev.touches !== undefined && ev.touches.length > 0 ? ev.touches[0] : ev;
+    let pt = eventPosRelativeTo(touch, canvas);
+    if (pt.y < circ.top || pt.y > circ.top + circ.desiredHeight()) {
+        return;
+    }
+    let n = circ.circuitDefinition.columns.length;
+    let col = circ.indexOfDisplayedColumnAt(pt.x, pt.y);
+    if (col === undefined) {
+        col = circ.toColumnSpaceCoordinate(pt.x) < 0 ? 0 : n;
+    }
+    ev.stopImmediatePropagation();
+    ev.preventDefault();
+    QndView.placeBlock(col, Math.max(0, circ.wireIndexAt(pt.y)));
+};
+canvasDiv.addEventListener('mousedown', placeBlockAt, true);
+canvasDiv.addEventListener('touchstart', placeBlockAt, true);
+
+// Grabbing a building block's label picks the whole block up; the next click puts it down (see placeBlockAt).
+let grabBlockAt = ev => {
+    if (QndView.placing !== undefined) {
+        return;
+    }
+    let touch = ev.touches !== undefined && ev.touches.length > 0 ? ev.touches[0] : ev;
+    let found = displayed.get().displayedCircuit.blockLabelAt(eventPosRelativeTo(touch, canvas));
+    if (found === undefined) {
+        return;
+    }
+    ev.stopImmediatePropagation();
+    ev.preventDefault();
+    QndView.pickUpBlock(found);
+};
+canvasDiv.addEventListener('mousedown', grabBlockAt, true);
+canvasDiv.addEventListener('touchstart', grabBlockAt, true);
+
 canvasDiv.addEventListener('dblclick', ev => {
     let circ = displayed.get().displayedCircuit;
     let pt = eventPosRelativeTo(ev, canvas);
@@ -339,7 +379,8 @@ canvasDiv.addEventListener('dblclick', ev => {
             let rec = circ._record();
             let cond = rec.cond.get(rec.mergedInto.has(col) ? rec.mergedInto.get(col) : col);
             if (cond !== undefined && cond.targets.indexOf(row) >= 0) {
-                current = cond.keys.join(cond.parity ? '+' : '*');  // Several bit-wire controls: an AND.
+                current = cond.keys.map((k, i) => (cond.negated && cond.negated[i] ? '¬' : '') + k).
+                    join(cond.parity ? '+' : '*');
             }
         }
         if (current !== undefined) {
