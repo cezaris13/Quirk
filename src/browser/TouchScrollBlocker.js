@@ -15,6 +15,7 @@
  */
 
 import {Rect} from "../math/Rect.js"
+import {Config} from "../Config.js"
 
 class TouchScrollBlocker {
     /**
@@ -62,12 +63,16 @@ class TouchScrollBlocker {
             let cur = this._curBlockers[i];
             let style = cur.div.style;
 
-            if (!desiredArea.isEqualTo(cur.area)) {
+            // The areas are in canvas units: zoom them like the canvas (Config.CANVAS_SCALE), or they'd sit off
+            // the gates they cover (letting a swipe on a gate scroll and grab it) and stretch the scrolling box.
+            let s = Config.CANVAS_SCALE;
+            if (!desiredArea.isEqualTo(cur.area) || cur.scale !== s) {
                 cur.area = desiredArea;
-                style.left = desiredArea.x + "px";
-                style.top = desiredArea.y + "px";
-                style.width = desiredArea.w + "px";
-                style.height = desiredArea.h + "px";
+                cur.scale = s;
+                style.left = desiredArea.x * s + "px";
+                style.top = desiredArea.y * s + "px";
+                style.width = desiredArea.w * s + "px";
+                style.height = desiredArea.h * s + "px";
             }
             if (style.cursor !== desiredCursor) {
                 style.cursor = desiredCursor;
