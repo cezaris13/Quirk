@@ -187,7 +187,20 @@ function initQnd(revision) {
         });
     }
 
-    // Keyboard shortcuts: P (paper-style checks), I (input tabs), C (classical record), B (building blocks).
+    let pauseBox = document.getElementById('qnd-pause');
+    let setPause = on => {
+        QndView.pauseSampling = on;
+        if (pauseBox) {
+            pauseBox.checked = on;
+        }
+        QndView.requestRedraw();
+    };
+    if (pauseBox) {
+        pauseBox.addEventListener('change', () => setPause(pauseBox.checked));
+    }
+
+    // Keyboard shortcuts: P (paper-style checks), I (input tabs), C (classical record), B (building blocks),
+    // R (pause readout sampling).
     document.addEventListener('keydown', e => {
         let t = e.target;
         let typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
@@ -195,7 +208,9 @@ function initQnd(revision) {
             return;
         }
         let key = e.key.toLowerCase();
-        if (key === 'p') {
+        if (key === 'r') {
+            setPause(!QndView.pauseSampling);
+        } else if (key === 'p') {
             QndView.compact = !QndView.compact;
             if (compactBox) {
                 compactBox.checked = QndView.compact;

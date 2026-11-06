@@ -17,6 +17,7 @@
 import {CircuitDefinition} from "../circuit/CircuitDefinition.js"
 import {Config} from "../Config.js"
 import {CircuitStats} from "../circuit/CircuitStats.js"
+import {QndView} from "./qndView.js"
 
 const getCircuitCycleTime = (() => {
     /**
@@ -42,20 +43,26 @@ const getCircuitCycleTime = (() => {
 
 /** @type {undefined|!CircuitStats} */
 let _cachedStats = undefined;
+let _cachedAt = 0;
 
 /**
  * @param {!CircuitDefinition} circuit
  * @returns {!CircuitStats}
  */
 function simulate(circuit) {
-    if (_cachedStats !== undefined && _cachedStats.circuitDefinition.isEqualTo(circuit)) {
+    // A circuit whose only changes are sampled outcomes keeps its sample for its stable duration (or while sampling
+    // is paused), so redraws in between (mouse moves) don't draw a new one.
+    let dt = circuit.stableDuration();
+    let fresh = dt === Infinity || (dt > 0 && (QndView.pauseSampling || performance.now() - _cachedAt < dt * 1000));
+    if (_cachedStats !== undefined && fresh && _cachedStats.circuitDefinition.isEqualTo(circuit)) {
         return _cachedStats.withTime(getCircuitCycleTime());
     }
 
     _cachedStats = undefined;
     let result = CircuitStats.fromCircuitAtTime(circuit, getCircuitCycleTime());
-    if (circuit.stableDuration() === Infinity) {
+    if (dt > 0) {
         _cachedStats = result;
+        _cachedAt = performance.now();
     }
     return result;
 }

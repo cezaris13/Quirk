@@ -211,10 +211,24 @@ const redrawNow = () => {
     canvas.style.cursor = QndView.placing !== undefined ? 'crosshair' : painter.desiredCursorStyle || 'auto';
 
     let dt = displayed.get().stableDuration();
-    if (dt < Infinity) {
+    if (dt === 0) {
         window.requestAnimationFrame(() => redrawThrottle.trigger());
+    } else if (dt < Infinity && !QndView.pauseSampling && resampleTimer === undefined) {
+        // Only sampled outcomes change: draw a new sample now and then, not every frame (and not in a hidden tab).
+        resampleTimer = setTimeout(() => {
+            resampleTimer = undefined;
+            if (!document.hidden) {
+                redrawThrottle.trigger();
+            }
+        }, dt * 1000);
     }
 };
+let resampleTimer = undefined;
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        redrawThrottle.trigger();
+    }
+});
 
 redrawThrottle = new CooldownThrottle(redrawNow, Config.REDRAW_COOLDOWN_MILLIS, 0.1, true);
 QndView.requestRedraw = () => redrawThrottle.trigger();

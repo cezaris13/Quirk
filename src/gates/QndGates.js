@@ -112,6 +112,7 @@ QndGates.ParityReadout = new GateBuilder().
         GateShaders.applyMatrixOperation(ctx, Matrix.PAULI_X);
         withClearedControls(sampleMeasure)(ctx);
     }).
+    setStableDuration(Config.QND_RESAMPLE_SECONDS).
     setStatTexturesMaker(withClearedControls(detectorStatTexture)).
     setStatPixelDataPostProcessor(pixels => pixels[0] > 0).
     gate.withParam('');
@@ -128,6 +129,7 @@ QndGates.ResetPlus = new GateBuilder().
     markAsReachingOtherWires().
     setExtraDisableReasonFinder(resetControlReason).
     setActualEffectToUpdateFunc(measureThenApply(RESET_TO_PLUS)).
+    setStableDuration(Config.QND_RESAMPLE_SECONDS).
     gate;
 
 QndGates.ResetZero = new GateBuilder().
@@ -138,6 +140,7 @@ QndGates.ResetZero = new GateBuilder().
     markAsReachingOtherWires().
     setExtraDisableReasonFinder(resetControlReason).
     setActualEffectToUpdateFunc(measureThenApply(RESET_TO_ZERO)).
+    setStableDuration(Config.QND_RESAMPLE_SECONDS).
     gate;
 
 QndGates.ClassicalX = makeClassicalGate('X');

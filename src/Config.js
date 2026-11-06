@@ -135,6 +135,9 @@ Config.SHADE_RGB = '0, 0, 0';                 // Base of translucent indicator o
 Config.TOOLTIP_BACK_COLOR = '#F9FFF9';
 Config.TOOLTIP_TITLE_COLOR = 'blue';
 
+/** Seconds between new samples of QND readouts and resets (instead of every frame, which kept the CPU busy). */
+Config.QND_RESAMPLE_SECONDS = 0.4;
+
 /** Dark theme values for the colors above; Config.setDarkTheme swaps them in. */
 Config.DARK_THEME_COLORS = {
     FOREGROUND_COLOR: '#dfe1e5',

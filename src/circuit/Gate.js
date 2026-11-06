@@ -606,6 +606,17 @@ class GateBuilder {
     }
 
     /**
+     * For gates whose output changes without depending on time (e.g. sampled measurement outcomes): how many seconds
+     * to keep showing one result before computing a new one, instead of recomputing every frame.
+     * @param {!number} seconds
+     * @returns {!GateBuilder}
+     */
+    setStableDuration(seconds) {
+        this.gate._stableDuration = seconds;
+        return this;
+    }
+
+    /**
      * @param {!Matrix} matrix
      * @returns {!GateBuilder}
      */

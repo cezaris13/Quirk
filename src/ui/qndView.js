@@ -57,6 +57,8 @@ const QndView = {
     placeBlock(col, row) {},
     /** Picks up a block found in the circuit (see findBlocks), to be put down with placeBlock. */
     pickUpBlock(found) {},
+    /** Keep the current readout outcomes instead of sampling new ones every few hundred ms (edits still resample). */
+    pauseSampling: false,
     get compact() {
         return compact;
     },

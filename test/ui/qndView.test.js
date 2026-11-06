@@ -17,6 +17,7 @@ import {computeRecord, resolveClassical, circuitResources, recNegated} from "../
 import {QND_EXAMPLES} from "../../src/ui/qndExamples.js"
 import {Serializer} from "../../src/circuit/Serializer.js"
 import {CircuitDefinition} from "../../src/circuit/CircuitDefinition.js"
+import {Config} from "../../src/Config.js"
 
 let suite = new Suite("qndView");
 
@@ -88,4 +89,11 @@ suite.test("a reset can't be controlled, by a qubit or a record bit", () => {
     assertThat(reason([['•', 'reset+']])).isEqualTo("can't\ncontrol\nreset");
     assertThat(reason([['zpar', 1, 'QNDread'], [1, 'reset0', '•']])).isEqualTo("can't\ncontrol\nreset");
     assertThat(reason([['H', 'reset+']])).isEqualTo(undefined);
+});
+
+suite.test("sampled QND gates ask for a new sample now and then, not every frame", () => {
+    let dt = cols => Serializer.fromJson(CircuitDefinition, {cols}).stableDuration();
+    assertThat(dt([['zpar', 'QNDread'], ['reset+']])).isEqualTo(Config.QND_RESAMPLE_SECONDS);
+    assertThat(dt([['zpar', 'QNDread'], ['X^t']])).isEqualTo(0);  // A time-animated gate still redraws every frame.
+    assertThat(dt([['X^c']])).isEqualTo(Infinity);
 });
