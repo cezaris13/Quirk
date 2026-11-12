@@ -19,6 +19,9 @@ import {Config} from "../Config.js"
 
 const ALLOW_REGRAB_WATCHDOG_TIME_MS = 5000;
 const MOUSE_ID = "mouse!";
+// A touch grabs only after being held this long without moving more than TOUCH_SLOP_PX: a quick swipe scrolls.
+const TOUCH_HOLD_MS = 200;
+const TOUCH_SLOP_PX = 8;
 
 /**
  * @param {!TouchEvent|!MouseEvent} ev
@@ -95,6 +98,8 @@ class DragWatcher {
         this._lastPos = undefined;
         /** @type {undefined|!MouseEvent|!TouchEvent} */
         this._lastEv = undefined;
+        /** @type {undefined|!{id: *, x: !number, y: !number, timer: *}} A touch waiting to become a grab. */
+        this._pendingTouch = undefined;
     }
 
     addListenersUntilResultInvoked() {
@@ -106,10 +111,13 @@ class DragWatcher {
             addListenerUntilResultInvoked(document, 'mouseleave', ev => this.handleMouseEventWith(ev, this.onLeave)),
             addListenerUntilResultInvoked(document, 'mouseenter', ev => this.handleMouseEventWith(ev, this.onEnter)),
 
-            addListenerUntilResultInvoked(e, 'touchstart', ev => this.handleTouchEventWith(ev, this.onDown)),
-            addListenerUntilResultInvoked(e, 'touchmove', ev => this.handleTouchEventWith(ev, this.onMove)),
-            addListenerUntilResultInvoked(e, 'touchend', ev => this.handleTouchEventWith(ev, this.onUp)),
-            addListenerUntilResultInvoked(e, 'touchcancel', ev => this.handleTouchEventWith(ev, this.onCancel))
+            addListenerUntilResultInvoked(e, 'touchstart', ev => this.onTouchStart(ev)),
+            addListenerUntilResultInvoked(e, 'touchmove', ev => this.onTouchMove(ev)),
+            addListenerUntilResultInvoked(e, 'touchend', ev => this.onTouchEnd(ev)),
+            addListenerUntilResultInvoked(e, 'touchcancel', ev => {
+                this._clearPendingTouch();
+                this.handleTouchEventWith(ev, this.onCancel);
+            })
         ];
 
         return () => {
@@ -251,6 +259,66 @@ class DragWatcher {
      */
     relativeEventPos(ev) {
         return eventPosRelativeTo(ev, this._element);
+    }
+
+    _clearPendingTouch() {
+        if (this._pendingTouch !== undefined) {
+            clearTimeout(this._pendingTouch.timer);
+            this._pendingTouch = undefined;
+        }
+    }
+
+    /**
+     * Touch: wait TOUCH_HOLD_MS before grabbing, so that a quick swipe (even one starting on a gate) scrolls.
+     * @param {!TouchEvent} ev
+     */
+    onTouchStart(ev) {
+        let touch = ev.changedTouches[0];
+        if (this._pendingTouch !== undefined || this._grabPointerId !== undefined || touch === undefined) {
+            return;
+        }
+        let id = touch.identifier;
+        let pt = this.relativeEventPos(touch);
+        let timer = setTimeout(() => {
+            this._pendingTouch = undefined;
+            this.onDown(pt, id, ev);
+            if (this._grabPointerId === id && navigator.vibrate) {
+                navigator.vibrate(10);  // Feel that it's held.
+            }
+        }, TOUCH_HOLD_MS);
+        this._pendingTouch = {id, x: touch.clientX, y: touch.clientY, pt, timer};
+    }
+
+    /** @param {!TouchEvent} ev */
+    onTouchMove(ev) {
+        let p = this._pendingTouch;
+        for (let i = 0; i < ev.changedTouches.length; i++) {
+            let touch = ev.changedTouches[i];
+            if (p !== undefined && touch.identifier === p.id &&
+                    Math.hypot(touch.clientX - p.x, touch.clientY - p.y) > TOUCH_SLOP_PX) {
+                this._clearPendingTouch();  // Moved before the hold: it's a scroll.
+            }
+            if (touch.identifier === this._grabPointerId) {
+                if (ev.cancelable) {
+                    ev.preventDefault();  // Dragging a gate: don't scroll.
+                }
+                this.onMove(this.relativeEventPos(touch), touch.identifier, ev);
+            }
+        }
+    }
+
+    /** @param {!TouchEvent} ev */
+    onTouchEnd(ev) {
+        let p = this._pendingTouch;
+        for (let i = 0; i < ev.changedTouches.length; i++) {
+            let touch = ev.changedTouches[i];
+            if (p !== undefined && touch.identifier === p.id) {
+                // A tap: grab and drop in place, as before.
+                this._clearPendingTouch();
+                this.onDown(p.pt, p.id, ev);
+            }
+            this.onUp(this.relativeEventPos(touch), touch.identifier, ev);
+        }
     }
 
     /**

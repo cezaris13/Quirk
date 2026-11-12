@@ -49,7 +49,9 @@ class TouchScrollBlocker {
     setBlockers(desiredBlockers, overrideCursorStyle) {
         while (this._curBlockers.length < desiredBlockers.length) {
             let blockerDiv = document.createElement('div');
-            blockerDiv.style.touchAction = 'none';
+            // Scrolling may start on a gate: a drag only starts after a short hold (see MouseWatcher), which then
+            // stops the scroll itself.
+            blockerDiv.style.touchAction = 'manipulation';
             blockerDiv.style.position = 'absolute';
             blockerDiv.style.opacity = 0.0001;
             this._parentElement.appendChild(blockerDiv);
